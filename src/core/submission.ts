@@ -1,5 +1,6 @@
 import {answerOf} from './conditions'
 import {allFields} from './drawable'
+import {isFormId} from './ids'
 import {activeFields, type HubSpotAnswers} from './layout'
 import type {
   HubSpotField,
@@ -9,6 +10,7 @@ import type {
 } from './model'
 import {
   CONSENT_INPUT,
+  FORM_INPUT,
   HONEYPOT_INPUT,
   inputName,
   PAGE_NAME_INPUT,
@@ -63,6 +65,12 @@ const strings = (data: FormDataLike, name: string): string[] =>
 
 const first = (data: FormDataLike, name: string): string | undefined =>
   strings(data, name)[0]?.trim() || undefined
+
+/** The form a send says it is for, when that is a form id. Check it against the page's forms. */
+export function postedFormId(data: FormDataLike): string | undefined {
+  const formId = first(data, FORM_INPUT)
+  return isFormId(formId) ? formId.toLowerCase() : undefined
+}
 
 const ticked = (data: FormDataLike, name: string): boolean =>
   answerOf('checkbox', strings(data, name))[0] === 'true'
@@ -146,8 +154,8 @@ function consentOptions(
 
 /**
  * Reads a send against the form it was drawn from: only the fields that showed, checked the way
- * HubSpot checks them, in the shape its submit endpoint takes. Context passed in wins over the
- * page the form posted.
+ * HubSpot checks them, in the shape its submit endpoint takes. The page the form posted wins over
+ * the context's, being where the visitor was; the context fills in the rest.
  */
 export function readSubmission(
   form: HubSpotFormDefinition,
@@ -173,8 +181,8 @@ export function readSubmission(
   const legalConsentOptions = consentOptions(form, data, errors)
   if (Object.keys(errors).length > 0) return {status: 'invalid', errors}
 
-  const pageUri = context.pageUri ?? first(data, PAGE_URI_INPUT)
-  const pageName = context.pageName ?? first(data, PAGE_NAME_INPUT)
+  const pageUri = first(data, PAGE_URI_INPUT) ?? context.pageUri
+  const pageName = first(data, PAGE_NAME_INPUT) ?? context.pageName
   return {
     status: 'ready',
     submission: {
