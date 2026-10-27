@@ -45,8 +45,13 @@ export interface HubSpotFormComponents {
   Status: ComponentType<HubSpotStatusProps>
 }
 
-export const DEFAULT_ERROR_TEXT: Record<HubSpotFieldError, string> = {
+/**
+ * The words for HubSpot's errors. `unticked` stands in for `required` on a box that must be
+ * ticked: the consent box, a required subscription, a required single checkbox.
+ */
+export const DEFAULT_ERROR_TEXT: Record<HubSpotFieldError | 'unticked', string> = {
   required: 'Please fill this in.',
+  unticked: 'Please tick this box.',
   invalid: 'Please check this.',
   blocked: 'Please use another email address.',
 }
@@ -70,8 +75,8 @@ export interface HubSpotFormProps extends Omit<
   getFieldState?: (name: string) => HubSpotFieldState | undefined
   /** A field's error by input name, from the site's form library. Wins over HubSpot's. */
   getFieldError?: (name: string) => string | undefined
-  /** The words for HubSpot's errors. */
-  errorText?: Partial<Record<HubSpotFieldError, string>>
+  /** The words for HubSpot's errors, and `unticked` for a box that must be ticked. */
+  errorText?: Partial<typeof DEFAULT_ERROR_TEXT>
   /** Drawn above the button: a bot check, such as Cloudflare Turnstile's widget. */
   inside?: ReactNode
   /** Shown instead of HubSpot's embed for a form the site can't draw. */
@@ -202,8 +207,9 @@ export function HubSpotForm(props: HubSpotFormProps) {
   if (result?.status === 'sent' && !result.redirect)
     return <Status result={result} RichText={RichText} />
 
-  const errorFor = (name: string): string | undefined => {
-    const kind = errors[name]
+  const errorFor = (name: string, box = false): string | undefined => {
+    const found = errors[name]
+    const kind = found === 'required' && box ? 'unticked' : found
     return getFieldError?.(name) ?? (kind && (errorText?.[kind] ?? DEFAULT_ERROR_TEXT[kind]))
   }
   const renderField = (field: HubSpotFieldView) => {
@@ -214,13 +220,14 @@ export function HubSpotForm(props: HubSpotFormProps) {
         key={field.key}
         field={field}
         fieldState={getFieldState?.(field.name) ?? {}}
-        error={errorFor(field.name)}
+        error={errorFor(field.name, field.type === 'checkbox')}
         id={`${baseId}-${field.key}`}
       />
     )
   }
+  // The consent reads only its own boxes' names from this, and each of those is a box.
   const consentErrors = Object.fromEntries(
-    Object.keys(errors).map((name) => [name, errorFor(name)]),
+    Object.keys(errors).map((name) => [name, errorFor(name, true)]),
   )
 
   return (

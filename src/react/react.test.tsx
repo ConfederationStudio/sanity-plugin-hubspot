@@ -60,6 +60,7 @@ describe('HubSpotForm', () => {
       expect(screen.getAllByText('Please fill this in.').length).toBeGreaterThan(0),
     )
     expect(screen.getByLabelText(/First name/).getAttribute('aria-invalid')).toBe('true')
+    expect(screen.getByText('Please tick this box.')).toBeTruthy()
     expect(fetch).not.toHaveBeenCalled()
   })
 

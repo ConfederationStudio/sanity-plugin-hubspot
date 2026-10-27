@@ -310,18 +310,18 @@ Chatflows, bots and office hours stay in HubSpot. On the site:
 
 ### `<HubSpotForm>`
 
-| Prop                             |                                                                                    |
-| -------------------------------- | ---------------------------------------------------------------------------------- |
-| `form`                           | The copy: `definition->` on a `hubspot.form` field.                                |
-| `action`                         | A server action that calls `submitForm`. Without it, the browser sends to HubSpot. |
-| `fieldComponents`                | Your component for each field kind.                                                |
-| `components`                     | Your `Group`, `RichText`, `Consent`, `Submit` and `Status`.                        |
-| `getFieldState`, `getFieldError` | For a form library to hold values and errors.                                      |
-| `errorText`                      | The words for `required`, `invalid` and `blocked`.                                 |
-| `inside`                         | Drawn above the button: a bot-check widget.                                        |
-| `fallback`                       | Shown instead of HubSpot's embed for a form the site can't draw.                   |
-| `fillHiddenFromAddress`          | Fill hidden fields from the page's address (`?utm_source=`). Default true.         |
-| `onSent`                         | Called once HubSpot has the form.                                                  |
+| Prop                             |                                                                                                  |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `form`                           | The copy: `definition->` on a `hubspot.form` field.                                              |
+| `action`                         | A server action that calls `submitForm`. Without it, the browser sends to HubSpot.               |
+| `fieldComponents`                | Your component for each field kind.                                                              |
+| `components`                     | Your `Group`, `RichText`, `Consent`, `Submit` and `Status`.                                      |
+| `getFieldState`, `getFieldError` | For a form library to hold values and errors.                                                    |
+| `errorText`                      | The words for `required`, `invalid` and `blocked`, and `unticked` for a box that must be ticked. |
+| `inside`                         | Drawn above the button: a bot-check widget.                                                      |
+| `fallback`                       | Shown instead of HubSpot's embed for a form the site can't draw.                                 |
+| `fillHiddenFromAddress`          | Fill hidden fields from the page's address (`?utm_source=`). Default true.                       |
+| `onSent`                         | Called once HubSpot has the form.                                                                |
 
 ## Security
 

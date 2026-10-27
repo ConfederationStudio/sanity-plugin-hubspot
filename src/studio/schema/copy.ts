@@ -178,7 +178,7 @@ const afterSubmit = defineType({
 
 const copy = defineType({
   name: FORM_COPY_TYPE,
-  title: 'HubSpot form',
+  title: 'HubSpot form copy',
   type: 'document',
   icon: EnvelopeIcon,
   readOnly: true,
