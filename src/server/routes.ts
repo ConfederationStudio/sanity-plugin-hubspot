@@ -42,11 +42,14 @@ export interface HubSpotRoutesOptions {
   fetch?: typeof fetch
 }
 
-/** The route's handlers, for a catch-all route such as Next.js's `app/api/hubspot/[...path]/route.ts`. */
+/**
+ * The route's handlers, for a catch-all route such as Next.js's `app/api/hubspot/[...path]/route.ts`.
+ * Plain functions, so they can be taken apart: `export const {GET, POST, OPTIONS} = hubspotRoutes(…)`.
+ */
 export interface HubSpotRoutes {
-  GET(request: Request): Promise<Response>
-  POST(request: Request): Promise<Response>
-  OPTIONS(request: Request): Promise<Response>
+  GET: (request: Request) => Promise<Response>
+  POST: (request: Request) => Promise<Response>
+  OPTIONS: (request: Request) => Promise<Response>
 }
 
 type Route = {name: 'connection'} | {name: 'forms'} | {name: 'form'; formId: string}

@@ -68,16 +68,17 @@ export function fieldTypes(config: HubSpotPluginConfig) {
     title: 'HubSpot form',
     type: 'object',
     icon: EnvelopeIcon,
+    // The input below draws the field and never the default object input, so these are not
+    // marked hidden: Sanity hides an object whose fields are all hidden, input and all.
     fields: [
-      defineField({name: 'formId', title: 'Form id', type: 'string', readOnly: true, hidden: true}),
-      defineField({name: 'name', type: 'string', readOnly: true, hidden: true}),
+      defineField({name: 'formId', title: 'Form id', type: 'string', readOnly: true}),
+      defineField({name: 'name', type: 'string', readOnly: true}),
       defineField({
         name: 'definition',
         type: 'reference',
         to: [{type: FORM_COPY_TYPE}],
         weak: true,
         readOnly: true,
-        hidden: true,
       }),
     ],
     components: {

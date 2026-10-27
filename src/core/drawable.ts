@@ -1,4 +1,4 @@
-import {SUPPORTED_OPERATORS} from './conditions'
+import {answerOf, meetsCondition, SUPPORTED_OPERATORS} from './conditions'
 import type {HubSpotConsent, HubSpotField, HubSpotGroup, HubSpotUndrawableReason} from './model'
 
 /** Every field of a form, follow-ups included, parents before their follow-ups. */
@@ -57,15 +57,21 @@ export interface HubSpotFit {
 
 /**
  * Whether a HubSpot form takes what a site's own form sends, such as a newsletter's one email
- * field: it must have every field the site sends, and require no other.
+ * field: it must have every field the site sends, and require no other. A required follow-up
+ * counts only where it can show: when the site sends its parent, or when its condition holds on
+ * the answer an unsent parent has (none, its default when hidden, `false` for a single checkbox).
  */
 export function fitsFields(groups: readonly HubSpotGroup[], names: readonly string[]): HubSpotFit {
-  const fields = allFields(groups)
-  const onForm = new Set(fields.map((field) => field.name))
+  const onForm = new Set(allFields(groups).map((field) => field.name))
   const sent = new Set(names)
   const missing = names.filter((name) => !onForm.has(name))
-  const unsent = fields
-    .filter((field) => field.required && !field.hidden && !sent.has(field.name))
-    .map((field) => field.name)
+  const unsent: string[] = []
+  const walk = (field: HubSpotField) => {
+    if (field.required && !field.hidden && !sent.has(field.name)) unsent.push(field.name)
+    const unsentAnswer = answerOf(field.type, field.hidden ? field.defaultValues : [])
+    for (const followUp of field.followUps)
+      if (sent.has(field.name) || meetsCondition(followUp.when, unsentAnswer)) walk(followUp.field)
+  }
+  for (const group of groups) for (const field of group.fields) walk(field)
   return {fits: missing.length === 0 && unsent.length === 0, missing, unsent}
 }

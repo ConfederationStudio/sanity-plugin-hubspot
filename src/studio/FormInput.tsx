@@ -4,10 +4,10 @@ import {TrashIcon} from '@sanity/icons/Trash'
 import {Box, Button, Card, Flex, Stack, Text} from '@sanity/ui'
 import {useToast} from '@sanity/ui/toast'
 import {useCallback, useEffect, useState} from 'react'
-import {set, unset, useClient, type ObjectInputProps} from 'sanity'
+import {set, setIfMissing, unset, useClient, type ObjectInputProps} from 'sanity'
 
 import {fitsFields} from '../core/drawable'
-import {formCopyId} from '../core/ids'
+import {FORM_TYPE, formCopyId} from '../core/ids'
 import type {HubSpotFormDefinition} from '../core/model'
 import {API_VERSION, type HubSpotPluginConfig} from './config'
 import {
@@ -40,7 +40,7 @@ export type FormInputProps = ObjectInputProps<HubSpotFormValue> & {config: HubSp
  * write the copy, the pick is still saved, and the HubSpot tab writes the copy later.
  */
 export function FormInput(props: FormInputProps) {
-  const {value, onChange, readOnly, config, schemaType} = props
+  const {value, onChange, readOnly, config, schemaType, path} = props
   const client = useClient({apiVersion: API_VERSION})
   const route = useRoute(config.api)
   const toast = useToast()
@@ -97,7 +97,14 @@ export function FormInput(props: FormInputProps) {
     async (form: HubSpotFormDefinition) => {
       setPicking(false)
       await keep(form)
-      onChange(set(fieldValue(form)))
+      // Field by field, so an array item, such as a block in rich text, keeps its `_key`.
+      const next = fieldValue(form)
+      onChange([
+        setIfMissing({_type: FORM_TYPE}),
+        set(next.formId, ['formId']),
+        set(next.name, ['name']),
+        set(next.definition, ['definition']),
+      ])
     },
     [keep, onChange],
   )
@@ -125,6 +132,14 @@ export function FormInput(props: FormInputProps) {
       setBusy(false)
     }
   }, [client, config.api, copy, formId, keep, name, onChange, route, setCopy, toast])
+
+  // A field is removed whole; a block in rich text is left in place, for the editor to delete.
+  const last = path.at(-1)
+  const inArray = typeof last === 'object' && last !== null && '_key' in last
+  const remove = useCallback(
+    () => onChange(inArray ? [unset(['formId']), unset(['name']), unset(['definition'])] : unset()),
+    [inArray, onChange],
+  )
 
   const changed = formatDate(copy?.updatedAt)
 
@@ -169,7 +184,7 @@ export function FormInput(props: FormInputProps) {
                 title="Remove the form"
                 aria-label="Remove the form"
                 disabled={readOnly}
-                onClick={() => onChange(unset())}
+                onClick={remove}
               />
             </Flex>
             {copy && <FormStatus form={copy} />}

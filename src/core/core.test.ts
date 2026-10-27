@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest'
 
 import {answerOf, meetsCondition} from './conditions'
+import {fitsFields} from './drawable'
 import {embedScriptUrl, regionFromUiDomain, submitUrl, trackingScriptUrl} from './hosts'
 import type {RawForm} from './hubspot'
 import {formCopyId} from './ids'
@@ -154,6 +155,29 @@ describe('conditions', () => {
     expect(meetsCondition({operator: 'set_eq', values: ['a', 'b']}, ['b', 'a', 'c'])).toBe(false)
     expect(meetsCondition({operator: 'is_not_empty'}, [])).toBe(false)
     expect(meetsCondition({operator: 'within_time', value: '7'}, ['2026-01-01'])).toBe(false)
+  })
+})
+
+describe('fitsFields', () => {
+  const [contact, newsletter] = SAMPLE_FORMS
+
+  it('takes a site’s own email field for a form that asks for nothing else', () => {
+    expect(fitsFields(newsletter.groups, ['email'])).toEqual({fits: true, missing: [], unsent: []})
+  })
+
+  it('names what the form requires and what it lacks', () => {
+    expect(fitsFields(contact.groups, ['email', 'phone'])).toEqual({
+      fits: false,
+      missing: ['phone'],
+      unsent: ['firstname', 'lastname'],
+    })
+  })
+
+  it('counts a required follow-up only when its parent is sent', () => {
+    expect(fitsFields(contact.groups, ['firstname', 'lastname', 'email']).unsent).toEqual([])
+    expect(fitsFields(contact.groups, ['firstname', 'lastname', 'email', 'topic']).unsent).toEqual([
+      'company',
+    ])
   })
 })
 
