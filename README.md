@@ -358,6 +358,24 @@ pnpm build
 
 `pnpm check` typechecks, lints and runs the tests. A test fails if `/react` or `/server`, types included, reaches Sanity.
 
+### The test Studio and site
+
+`dev/` holds a Studio and a small Next.js site that use the built package, against the plugin's own test project (`3hko8drb`, dataset `production`):
+
+- `dev/studio` on http://localhost:3333: a page and a post type with a form field, a newsletter field that draws its own email field, the page fields, and rich text with form and chat blocks.
+- `dev/site` on http://localhost:3000: the route at `/api/hubspot`, and pages that draw their forms. The main form sends through a server action; the others send from the browser.
+
+```bash
+pnpm build
+pnpm watch                  # rebuilds dist as you edit
+pnpm --dir dev/site dev
+pnpm --dir dev/studio dev
+```
+
+Use `pnpm watch` while the apps run: `pnpm build` empties `dist` first, and a running app fails until it is back.
+
+With neither `HUBSPOT_TOKEN` nor `HUBSPOT_SECRET_KEY` in `dev/site/.env.local`, the route stands in with two sample forms, and sends to them go nowhere. Set either to try a real account. `SANITY_PROJECT_ID` and `SANITY_DATASET` (the site) and `SANITY_STUDIO_PROJECT_ID` and `SANITY_STUDIO_DATASET` (the Studio) point both at another project.
+
 ## License
 
 MIT © Confederation Studio

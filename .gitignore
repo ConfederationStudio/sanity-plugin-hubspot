@@ -58,3 +58,10 @@ yalc.lock
 
 # Compiled plugin
 dist
+
+# Dev apps
+.next
+.sanity
+next-env.d.ts
+*.tsbuildinfo
+.env*.local

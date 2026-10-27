@@ -1,0 +1,23 @@
+{
+  "name": "hubspot-test-studio",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "sanity build",
+    "dev": "sanity dev",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "sanity": "^6.20.0",
+    "sanity-plugin-hubspot": "workspace:*",
+    "styled-components": "^6.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@types/react": "^19.3.0",
+    "typescript": "^6.0.3"
+  }
+}

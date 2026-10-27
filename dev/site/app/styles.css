@@ -1,0 +1,68 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+section {
+  margin-block: 2rem;
+}
+
+form {
+  display: grid;
+  gap: 1rem;
+}
+
+[data-hubspot-row] {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(var(--columns, 1), 1fr);
+}
+
+[data-hubspot-row][data-columns='2'] {
+  --columns: 2;
+}
+
+[data-hubspot-row][data-columns='3'] {
+  --columns: 3;
+}
+
+[data-hubspot-field] {
+  display: grid;
+  gap: 0.25rem;
+}
+
+input:not([type='checkbox'], [type='radio']),
+select,
+textarea {
+  font: inherit;
+  padding: 0.5rem;
+}
+
+[data-hubspot-error],
+[role='alert'] {
+  color: #c62828;
+  margin: 0;
+}
+
+[data-hubspot-consent-box] {
+  display: flex;
+  gap: 0.5rem;
+  align-items: start;
+}
+
+button {
+  font: inherit;
+  padding: 0.5rem 1rem;
+  justify-self: start;
+}
