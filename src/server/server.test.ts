@@ -54,6 +54,8 @@ function network(): Network & {fetch: typeof fetch} {
     if (url.includes('/data/doc/')) return json({documents: net.settings ? [net.settings] : []})
     if (url.startsWith('https://api.hsforms.com/')) return net.submit(url, init)
     if (auth.startsWith('bad-key')) return json({message: 'nope'}, 401)
+    if (auth.startsWith('scopeless-key') && url.includes('/marketing/'))
+      return json({category: 'MISSING_SCOPES'}, 403)
     if (url.endsWith('/account-info/v3/details'))
       return json({portalId: 4242, uiDomain: 'app-eu1.hubspot.com', dataHostingLocation: 'eu1'})
     if (url.includes('/marketing/v3/forms?')) {
@@ -139,6 +141,15 @@ describe('hubspotRoutes', () => {
     })
   })
 
+  it('tells a key HubSpot doesn’t take from one without the forms scope', async () => {
+    expect(
+      (await setup({token: 'bad-key'}).call('GET', '/connection', {token: 'admin-token'})).body,
+    ).toEqual({status: 'key-rejected', source: 'environment', canSaveKey: false})
+    expect(
+      await setup({token: 'scopeless-key'}).call('GET', '/forms', {token: 'editor-token'}),
+    ).toMatchObject({status: 409, body: {error: 'key-lacks-scope'}})
+  })
+
   it('reads every form, page by page, with the account written in', async () => {
     const {call} = setup({token: 'env-key'})
     const {body} = await call('GET', '/forms', {token: 'editor-token'})
@@ -173,6 +184,15 @@ describe('hubspotRoutes', () => {
     ).toMatchObject({
       status: 409,
       body: {error: 'key-rejected'},
+    })
+    expect(
+      await call('POST', '/connection', {
+        token: 'admin-token',
+        body: {key: 'scopeless-key-of-full-length'},
+      }),
+    ).toMatchObject({
+      status: 409,
+      body: {error: 'key-lacks-scope'},
     })
     const saved = await call('POST', '/connection', {
       token: 'admin-token',

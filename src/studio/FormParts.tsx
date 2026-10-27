@@ -2,24 +2,42 @@ import {Badge, Box, Card, Flex, Inline, Stack, Text} from '@sanity/ui'
 
 import type {HubSpotFit} from '../core/drawable'
 import type {HubSpotField, HubSpotFormDefinition} from '../core/model'
+import {isSampleFormId} from '../core/sample'
 import {UNDRAWABLE_TEXT} from './copies'
 
-type FormFacts = Pick<HubSpotFormDefinition, 'drawable' | 'undrawable' | 'progressive'> & {
+type FormFacts = Pick<
+  HubSpotFormDefinition,
+  'formId' | 'drawable' | 'undrawable' | 'progressive'
+> & {
   archived?: boolean
 }
 
-/** Whether HubSpot still has the form, and whether the site can draw it. */
+/**
+ * Whether HubSpot still has the form, and whether the site can draw it. A stand-in sample is
+ * named as one: HubSpot never had it, so once a key is set it isn't archived but left behind.
+ */
 export function FormStatus({form}: {form: FormFacts}) {
+  const sample = isSampleFormId(form.formId)
   return (
     <Stack gap={2}>
       <Inline gap={2}>
-        {form.archived && <Badge tone="critical">Archived in HubSpot</Badge>}
+        {sample ? (
+          <Badge tone={form.archived ? 'critical' : 'default'}>Sample form</Badge>
+        ) : (
+          form.archived && <Badge tone="critical">Archived in HubSpot</Badge>
+        )}
         {form.drawable ? (
           <Badge tone="positive">Drawn by your site</Badge>
         ) : (
           <Badge tone="caution">Shown with HubSpot’s embed</Badge>
         )}
       </Inline>
+      {sample && form.archived && (
+        <Text size={1} muted>
+          A stand-in sample HubSpot doesn’t have: what visitors send to it goes nowhere. Choose a
+          HubSpot form instead.
+        </Text>
+      )}
       {!form.drawable && form.undrawable.length > 0 && (
         <Text size={1} muted>
           The site can’t draw it because{' '}

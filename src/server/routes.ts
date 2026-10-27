@@ -73,6 +73,7 @@ const STATUS: Record<HubSpotRouteErrorCode, number> = {
   'key-from-environment': 409,
   'not-connected': 409,
   'key-rejected': 409,
+  'key-lacks-scope': 409,
   'rate-limited': 429,
   'hubspot-failed': 502,
   'sanity-failed': 502,
@@ -89,6 +90,14 @@ class RouteError extends Error {
 }
 
 const SERVICE_KEY = /^[A-Za-z0-9_-]{10,512}$/
+
+/** What HubSpot made of a key it refused, for the Studio to explain; undefined for other errors. */
+function keyFailure(error: unknown): 'key-rejected' | 'key-lacks-scope' | undefined {
+  return error instanceof HubSpotApiError &&
+    (error.failure === 'key-rejected' || error.failure === 'key-lacks-scope')
+    ? error.failure
+    : undefined
+}
 
 /**
  * The site's HubSpot route: the Studio's only way to HubSpot. It answers the Studio's origins,
@@ -138,8 +147,8 @@ export function hubspotRoutes(options: HubSpotRoutesOptions): HubSpotRoutes {
       const account = await cachedAccount(hubspotApi(found.key, fetcher), found.key)
       return {status: 'connected', source: found.source, account, canSaveKey}
     } catch (error) {
-      if (error instanceof HubSpotApiError && error.failure === 'key-rejected')
-        return {status: 'key-rejected', source: found.source, canSaveKey}
+      const failure = keyFailure(error)
+      if (failure) return {status: failure, source: found.source, canSaveKey}
       throw error
     }
   }
@@ -177,8 +186,8 @@ export function hubspotRoutes(options: HubSpotRoutesOptions): HubSpotRoutes {
       await api.checkForms()
       return {sealedKey: await seal(options.secretKey, key.trim(), sealedFor(keys)), account}
     } catch (error) {
-      if (error instanceof HubSpotApiError && error.failure === 'key-rejected')
-        throw new RouteError('key-rejected')
+      const failure = keyFailure(error)
+      if (failure) throw new RouteError(failure)
       throw error
     }
   }

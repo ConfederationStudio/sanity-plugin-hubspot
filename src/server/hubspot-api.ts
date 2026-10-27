@@ -16,7 +16,7 @@ const PAGE_SIZE = 50
 const MAX_PAGES = 100
 const TIMEOUT = 10_000
 
-export type HubSpotFailure = 'key-rejected' | 'rate-limited' | 'hubspot-failed'
+export type HubSpotFailure = 'key-rejected' | 'key-lacks-scope' | 'rate-limited' | 'hubspot-failed'
 
 /** A HubSpot call that failed. The message carries the status only, never the key. */
 export class HubSpotApiError extends Error {
@@ -42,13 +42,16 @@ export interface HubSpotApi {
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
+/** HubSpot answers 401 to anything it doesn't take as a key, and 403 to a key without the scope. */
 function fail(status: number): never {
   const failure =
-    status === 401 || status === 403
+    status === 401
       ? 'key-rejected'
-      : status === 429
-        ? 'rate-limited'
-        : 'hubspot-failed'
+      : status === 403
+        ? 'key-lacks-scope'
+        : status === 429
+          ? 'rate-limited'
+          : 'hubspot-failed'
   throw new HubSpotApiError(failure, status)
 }
 

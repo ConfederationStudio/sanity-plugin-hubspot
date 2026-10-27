@@ -19,6 +19,7 @@ import {
   OPEN_CHAT_TYPE,
   PAGE_TYPE,
 } from '../../core/ids'
+import {isSampleFormId} from '../../core/sample'
 import {API_VERSION, type HubSpotPluginConfig} from '../config'
 import type {HubSpotFormValue} from '../copies'
 import {FormInput} from '../FormInput'
@@ -87,10 +88,23 @@ export function fieldTypes(config: HubSpotPluginConfig) {
       ),
     },
     preview: {
-      select: {name: 'name', archived: 'definition.archived'},
-      prepare: ({name, archived}: {name?: string; archived?: boolean}) => ({
+      select: {name: 'name', formId: 'formId', archived: 'definition.archived'},
+      prepare: ({
+        name,
+        formId,
+        archived,
+      }: {
+        name?: string
+        formId?: string
+        archived?: boolean
+      }) => ({
         title: name ?? 'No form chosen',
-        subtitle: archived ? 'Archived in HubSpot' : 'HubSpot form',
+        subtitle:
+          formId && isSampleFormId(formId)
+            ? 'Sample form'
+            : archived
+              ? 'Archived in HubSpot'
+              : 'HubSpot form',
         media: EnvelopeIcon,
       }),
     },
@@ -104,9 +118,10 @@ export function fieldTypes(config: HubSpotPluginConfig) {
             .fetch<{archived?: boolean} | null>('*[_id == $id][0]{archived}', {
               id: formCopyId(value.formId),
             })
-          return copy?.archived
-            ? `“${value.name ?? 'This form'}” is archived in HubSpot, so the site can’t send it.`
-            : true
+          if (!copy?.archived) return true
+          return isSampleFormId(value.formId)
+            ? `“${value.name ?? 'This form'}” is a stand-in sample HubSpot doesn’t have, so what visitors send to it goes nowhere. Choose a HubSpot form.`
+            : `“${value.name ?? 'This form'}” is archived in HubSpot, so the site can’t send it.`
         })
         .warning(),
   })

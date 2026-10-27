@@ -215,6 +215,10 @@ function ConnectionPanel({
     }
   }
 
+  const theKey =
+    'source' in connection && connection.source === 'environment'
+      ? 'the key in HUBSPOT_TOKEN'
+      : 'the saved key'
   let summary: string
   switch (connection.status) {
     case 'connected':
@@ -225,7 +229,10 @@ function ConnectionPanel({
       }`
       break
     case 'key-rejected':
-      summary = 'HubSpot refuses the key. It may have been revoked, or lack the forms scope.'
+      summary = `HubSpot doesn’t take ${theKey} as a key. It needs a Service Key: a personal access key or developer API key won’t work, and nor will a revoked one.`
+      break
+    case 'key-lacks-scope':
+      summary = `HubSpot takes ${theKey}, but it lacks the forms scope. Add the scope to the Service Key in HubSpot, or create one that has it.`
       break
     case 'stand-in':
       summary = 'Stand-in mode: the site’s route answers with sample forms and calls nobody.'
@@ -368,6 +375,7 @@ export function HubSpotTool({config}: {config: HubSpotPluginConfig}) {
         formId: copy.formId,
         name: copy.name ?? copy.formId,
         facts: {
+          formId: copy.formId,
           archived: copy.archived ?? true,
           drawable: copy.drawable ?? false,
           undrawable: copy.undrawable ?? [],

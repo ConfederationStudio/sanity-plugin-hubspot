@@ -12,7 +12,12 @@ export type HubSpotConnection =
   | {status: 'connected'; source: HubSpotKeySource; account: HubSpotAccount; canSaveKey: boolean}
   /** No key, or a saved one the site's secret key can no longer open (`unreadable`). */
   | {status: 'not-connected'; canSaveKey: boolean; unreadable?: boolean}
-  | {status: 'key-rejected'; source: HubSpotKeySource; canSaveKey: boolean}
+  /** HubSpot doesn't take the key as one (`key-rejected`), or takes it without the forms scope. */
+  | {
+      status: 'key-rejected' | 'key-lacks-scope'
+      source: HubSpotKeySource
+      canSaveKey: boolean
+    }
   /** The route answers with sample forms and calls no one. */
   | {status: 'stand-in'}
 
@@ -43,6 +48,7 @@ export type HubSpotRouteErrorCode =
   | 'key-from-environment'
   | 'not-connected'
   | 'key-rejected'
+  | 'key-lacks-scope'
   | 'rate-limited'
   | 'hubspot-failed'
   | 'sanity-failed'

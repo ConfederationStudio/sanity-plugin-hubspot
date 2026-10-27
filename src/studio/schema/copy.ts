@@ -2,6 +2,7 @@ import {EnvelopeIcon} from '@sanity/icons/Envelope'
 import {defineArrayMember, defineField, defineType} from 'sanity'
 
 import {FORM_COPY_TYPE} from '../../core/ids'
+import {isSampleFormId} from '../../core/sample'
 
 /**
  * The form copy and the objects inside it. The Studio writes a copy whenever an editor picks or
@@ -208,22 +209,27 @@ const copy = defineType({
     defineField({name: 'version', title: 'Model version', type: 'number', readOnly: true}),
   ],
   preview: {
-    select: {title: 'name', archived: 'archived', drawable: 'drawable'},
+    select: {title: 'name', formId: 'formId', archived: 'archived', drawable: 'drawable'},
     prepare: ({
       title,
+      formId,
       archived,
       drawable,
     }: {
       title?: string
+      formId?: string
       archived?: boolean
       drawable?: boolean
     }) => ({
       title,
-      subtitle: archived
-        ? 'Archived in HubSpot'
-        : drawable
-          ? 'Drawn by the site'
-          : 'Shown with HubSpot’s embed',
+      subtitle:
+        formId && isSampleFormId(formId)
+          ? 'Sample form'
+          : archived
+            ? 'Archived in HubSpot'
+            : drawable
+              ? 'Drawn by the site'
+              : 'Shown with HubSpot’s embed',
       media: EnvelopeIcon,
     }),
   },

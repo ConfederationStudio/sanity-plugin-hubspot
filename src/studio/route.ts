@@ -101,7 +101,9 @@ export function failureText(failure: unknown, api: string): string {
     case 'not-connected':
       return 'HubSpot isn’t connected yet. Open the HubSpot tab to connect it.'
     case 'key-rejected':
-      return 'HubSpot refused the key. Check that it is a Service Key with the forms scope.'
+      return 'HubSpot doesn’t take this as a key. It needs a Service Key, from Development › Keys › Service keys in HubSpot: a personal access key or developer API key won’t work.'
+    case 'key-lacks-scope':
+      return 'HubSpot takes the key, but it lacks the forms scope. Add the scope to the Service Key in HubSpot, or create one that has it.'
     case 'rate-limited':
       return 'HubSpot asked for a pause. Try again in a minute.'
     case 'sanity-failed':
