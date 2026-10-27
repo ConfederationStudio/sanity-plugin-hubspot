@@ -45,3 +45,27 @@ export function undrawableReasons(form: {
   }
   return [...reasons]
 }
+
+/** How a HubSpot form fits a site's own form that sends `names` (property names) only. */
+export interface HubSpotFit {
+  fits: boolean
+  /** Sent by the site's form, but not on the HubSpot form. */
+  missing: string[]
+  /** Required by the HubSpot form, but not sent by the site's form. */
+  unsent: string[]
+}
+
+/**
+ * Whether a HubSpot form takes what a site's own form sends, such as a newsletter's one email
+ * field: it must have every field the site sends, and require no other.
+ */
+export function fitsFields(groups: readonly HubSpotGroup[], names: readonly string[]): HubSpotFit {
+  const fields = allFields(groups)
+  const onForm = new Set(fields.map((field) => field.name))
+  const sent = new Set(names)
+  const missing = names.filter((name) => !onForm.has(name))
+  const unsent = fields
+    .filter((field) => field.required && !field.hidden && !sent.has(field.name))
+    .map((field) => field.name)
+  return {fits: missing.length === 0 && unsent.length === 0, missing, unsent}
+}
