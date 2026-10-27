@@ -26,3 +26,9 @@ export const isPortalId = (value: unknown): value is string =>
  * copies without a token, so they must be public wherever the dataset is.
  */
 export const formCopyId = (formId: string): string => `hubspot-form-${formId.toLowerCase()}`
+
+/**
+ * The GROQ projection for a `hubspot.form` field, with its copy: `newsletter${HUBSPOT_FORM_PROJECTION}`
+ * in a page's query, then `<HubSpotForm form={page.newsletter?.definition} />`.
+ */
+export const HUBSPOT_FORM_PROJECTION = '{_type, formId, name, "definition": definition->}'

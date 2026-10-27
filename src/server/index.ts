@@ -6,7 +6,8 @@ export {submissionContext, type HeadersLike} from './context'
 export {hubspotRoutes, type HubSpotRoutes, type HubSpotRoutesOptions} from './routes'
 export {getHubSpotForm, submitForm, type SubmitFormOptions} from './submit'
 
-export {FORM_COPY_TYPE, formCopyId, isFormId} from '../core/ids'
+export {CONTENT_TYPES, resolveContentType, type HubSpotContentType} from '../core/content-type'
+export {FORM_COPY_TYPE, FORM_TYPE, formCopyId, HUBSPOT_FORM_PROJECTION, isFormId} from '../core/ids'
 export {
   postedFormId,
   readSubmission,
