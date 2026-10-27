@@ -8,12 +8,17 @@ import {readHubSpotReply, readHutk, readSubmission, type FormDataLike} from '../
 /**
  * Sends a form from the browser to HubSpot's public endpoint, which allows cross-origin calls,
  * so a site with no server can take forms. HubSpot reads the visitor's address from the call.
+ * The page sent is the one the browser is on, unless the data names another.
  */
 export async function sendHubSpotForm(
   form: HubSpotFormDefinition,
   data: FormDataLike,
 ): Promise<HubSpotSubmitResult> {
-  const read = readSubmission(form, data, {hutk: readHutk(document.cookie)})
+  const read = readSubmission(form, data, {
+    hutk: readHutk(document.cookie),
+    pageUri: window.location.href,
+    pageName: document.title,
+  })
   if (read.status === 'invalid') return {status: 'invalid', errors: read.errors}
   if (read.status === 'spam' || isSampleFormId(form.formId))
     return readHubSpotReply(form, 200, null)

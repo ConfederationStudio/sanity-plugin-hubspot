@@ -7,6 +7,7 @@ import {parseForm} from '../core/parse'
 import {SAMPLE_FORMS} from '../core/sample'
 import {hubspotWindow} from './globals'
 import {HubSpotForm} from './HubSpotForm'
+import {sendHubSpotForm} from './send'
 import {createTracker} from './tracker'
 
 afterEach(() => {
@@ -121,6 +122,25 @@ describe('HubSpotForm', () => {
     expect(container.querySelector('.hs-form-frame')?.getAttribute('data-form-id')).toBe(
       live.formId,
     )
+  })
+})
+
+describe('sendHubSpotForm', () => {
+  it('sends the page a site’s own form was on', async () => {
+    window.history.replaceState(null, '', '/news')
+    document.title = 'News'
+    const fetch = vi.fn(async (_url: string, _init?: RequestInit) =>
+      Response.json({inlineMessage: '<p>You’re on the list.</p>'}),
+    )
+    vi.stubGlobal('fetch', fetch)
+    const data = new FormData()
+    data.set('email', 'ada@example.com')
+    await expect(sendHubSpotForm(live, data)).resolves.toMatchObject({status: 'sent'})
+
+    const [, init] = fetch.mock.calls[0] ?? []
+    expect(JSON.parse(typeof init?.body === 'string' ? init.body : '{}')).toMatchObject({
+      context: {pageUri: 'http://localhost:3000/news', pageName: 'News'},
+    })
   })
 })
 
