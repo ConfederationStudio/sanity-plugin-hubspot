@@ -1,0 +1,95 @@
+{
+  "name": "sanity-plugin-hubspot",
+  "version": "0.0.0",
+  "private": true,
+  "description": "HubSpot forms, tracking, page content types and live chat for Sanity: pick a form in the Studio, draw it in your site's own design.",
+  "keywords": [
+    "forms",
+    "hubspot",
+    "live-chat",
+    "sanity",
+    "sanity-plugin",
+    "tracking"
+  ],
+  "homepage": "https://github.com/ConfederationStudio/sanity-plugin-hubspot#readme",
+  "bugs": {
+    "url": "https://github.com/ConfederationStudio/sanity-plugin-hubspot/issues"
+  },
+  "license": "MIT",
+  "author": "Confederation Studio",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ConfederationStudio/sanity-plugin-hubspot.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "source": "./src/react/index.ts",
+      "default": "./dist/react.js"
+    },
+    "./server": {
+      "source": "./src/server/index.ts",
+      "default": "./dist/server.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "plugin-kit verify-package --silent && pkg-utils build --strict --check --clean",
+    "check": "tsc --noEmit && oxlint && vitest run",
+    "format": "oxfmt",
+    "link-watch": "plugin-kit link-watch",
+    "lint": "oxlint",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "watch": "pkg-utils watch --strict"
+  },
+  "dependencies": {
+    "@sanity/icons": "^5.2.3",
+    "@sanity/ui": "^4.4.10"
+  },
+  "devDependencies": {
+    "@sanity/pkg-utils": "^13.0.16",
+    "@sanity/plugin-kit": "^10.1.0",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^24",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "jsdom": "^30.1.3",
+    "oxfmt": "^0.74.0",
+    "oxlint": "^1.89.0",
+    "oxlint-tsgolint": "^7.0.2005",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "sanity": "^6.20.0",
+    "styled-components": "^6.6.0",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
+  },
+  "peerDependencies": {
+    "react": "^19.2",
+    "sanity": "^5 || ^6.0.0-0",
+    "styled-components": "^6.1"
+  },
+  "peerDependenciesMeta": {
+    "sanity": {
+      "optional": true
+    },
+    "styled-components": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=20.19 <22 || >=22.12"
+  }
+}
