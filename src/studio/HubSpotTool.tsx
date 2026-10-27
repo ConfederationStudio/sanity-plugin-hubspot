@@ -19,7 +19,7 @@ import {useCallback, useEffect, useMemo, useState} from 'react'
 import {useClient, type SanityClient} from 'sanity'
 import {IntentLink} from 'sanity/router'
 
-import {FORM_COPY_TYPE, SETTINGS_ID, SETTINGS_TYPE} from '../core/ids'
+import {FORM_COPY_TYPE, formCopyId, SETTINGS_ID, SETTINGS_TYPE} from '../core/ids'
 import {MODEL_VERSION, type HubSpotAccount, type HubSpotFormDefinition} from '../core/model'
 import type {HubSpotConnection} from '../core/route'
 import {API_VERSION, type HubSpotPluginConfig} from './config'
@@ -74,9 +74,32 @@ function editorUrl(account: HubSpotAccount | undefined, formId: string): string 
 
 type SyncResult = {written: number; archived: number; failed: number}
 
+const COPY_REF = /"_ref":"(hubspot-form-[0-9a-f-]{36})"/g
+
 /**
- * Brings the copies up to date: a form HubSpot changed is copied again, and one it no longer
- * lists is asked for by id, then marked archived if HubSpot has none. `all` copies every one.
+ * The forms documents point at that have no copy yet: picked by an editor whose role couldn't
+ * write one, or set by a migration. Found through the documents that reference them.
+ */
+async function uncopied(
+  client: SanityClient,
+  forms: HubSpotFormDefinition[],
+  copies: CopyFacts[],
+): Promise<HubSpotFormDefinition[]> {
+  const copied = new Set(copies.map((copy) => copy._id))
+  const byCopyId = new Map(forms.map((form) => [formCopyId(form.formId), form]))
+  const missing = [...byCopyId.keys()].filter((id) => !copied.has(id))
+  if (missing.length === 0) return []
+  const documents = await client.fetch<unknown[]>('*[references($ids)]', {ids: missing})
+  const referenced = new Set(
+    Array.from(JSON.stringify(documents).matchAll(COPY_REF), (match) => match[1]),
+  )
+  return missing.flatMap((id) => (referenced.has(id) ? (byCopyId.get(id) ?? []) : []))
+}
+
+/**
+ * Brings the copies up to date: a form in use with no copy gets one, a form HubSpot changed is
+ * copied again, and one it no longer lists is asked for by id, then marked archived if HubSpot
+ * has none. `all` copies every one.
  */
 async function syncCopies(
   client: SanityClient,
@@ -86,8 +109,13 @@ async function syncCopies(
   all: boolean,
 ): Promise<SyncResult> {
   const listed = new Map(forms.map((form) => [form.formId, form]))
-  const outcomes = await Promise.allSettled(
-    copies.map(async (copy): Promise<'written' | 'archived' | 'kept'> => {
+  const firsts = (await uncopied(client, forms, copies)).map(async (form): Promise<'written'> => {
+    await writeCopy(client, form)
+    return 'written'
+  })
+  const outcomes = await Promise.allSettled([
+    ...firsts,
+    ...copies.map(async (copy): Promise<'written' | 'archived' | 'kept'> => {
       const fresh = listed.get(copy.formId)
       if (fresh) {
         const stale =
@@ -106,7 +134,7 @@ async function syncCopies(
       await markArchived(client, copy.formId)
       return 'archived'
     }),
-  )
+  ])
   const result: SyncResult = {written: 0, archived: 0, failed: 0}
   for (const outcome of outcomes) {
     if (outcome.status === 'rejected') result.failed++
