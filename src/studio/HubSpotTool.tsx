@@ -15,7 +15,7 @@ import {
   TextInput,
 } from '@sanity/ui'
 import {useToast} from '@sanity/ui/toast'
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useClient} from 'sanity'
 import {IntentLink} from 'sanity/router'
 
@@ -25,7 +25,10 @@ import type {HubSpotConnection} from '../core/route'
 import {API_VERSION, type HubSpotPluginConfig} from './config'
 import {formatDate, syncCopies, type CopyState} from './copies'
 import {FormStatus} from './FormParts'
-import {failureText, useRoute, type RouteClient} from './route'
+import {failureText, RouteError, useRoute, type RouteClient} from './route'
+
+/** How long the tab waits for a token before saying the session has none. */
+const SIGN_IN_WAIT = 5000
 
 interface Usage {
   _id: string
@@ -237,6 +240,11 @@ export function HubSpotTool({config}: {config: HubSpotPluginConfig}) {
   const toast = useToast()
   const [state, setState] = useState<ToolState>({})
   const [syncing, setSyncing] = useState(true)
+  // A load for a route that has since changed, such as one with no token yet, is answered by the next.
+  const current = useRef(route)
+  useEffect(() => {
+    current.current = route
+  }, [route])
 
   const load = useCallback(
     async (all = false) => {
@@ -264,9 +272,13 @@ export function HubSpotTool({config}: {config: HubSpotPluginConfig}) {
           })
         else if (all) toast.push({status: 'success', title: 'Every form copy is up to date'})
       } catch (error) {
-        setState((current) => ({...current, failure: failureText(error, config.api)}))
+        // Signing in, the Studio can open before Sanity gives it a token, which then reloads the tab.
+        if (error instanceof RouteError && error.code === 'no-token')
+          await new Promise((resolve) => setTimeout(resolve, SIGN_IN_WAIT))
+        if (route !== current.current) return
+        setState((last) => ({...last, failure: failureText(error, config.api)}))
       } finally {
-        setSyncing(false)
+        if (route === current.current) setSyncing(false)
       }
     },
     [client, config.api, route, toast],
