@@ -38,6 +38,7 @@ import {hubspot} from 'sanity-plugin-hubspot'
 
 export default defineConfig({
   // …
+  auth: {loginMethod: 'token'},
   plugins: [
     hubspot({
       api: 'https://www.example.com/api/hubspot',
@@ -46,6 +47,8 @@ export default defineConfig({
   ],
 })
 ```
+
+The route knows the editor by their Sanity token. A Studio opened at its own address signs in with Sanity's cookie when the browser has one, and then has no token, so the HubSpot tab asks the editor to sign out and in again. `loginMethod: 'token'` has it always sign in with a token, at the cost of one sign-in at each Studio address. A Studio opened inside the Sanity dashboard gets a token from the dashboard either way.
 
 Then use the types in your schema:
 

@@ -16,6 +16,8 @@ export function testStudio({api, basePath}: {api: string; basePath?: string}) {
     projectId,
     dataset,
     ...(basePath && {basePath}),
+    // The route needs the editor's token, which a Studio signed in with Sanity's cookie hasn't got.
+    auth: {loginMethod: 'token'},
     plugins: [
       structureTool(),
       hubspot({api, contentTypes: {page: 'standard-page', post: 'blog-post'}}),
