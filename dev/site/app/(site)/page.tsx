@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-import {client, PAGES_QUERY, type PageListItem} from '../lib/sanity'
+import {client, PAGES_QUERY, type PageListItem} from '../../lib/sanity'
 import {HubSpot} from './HubSpot'
 
 export const dynamic = 'force-dynamic'

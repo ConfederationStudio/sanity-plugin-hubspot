@@ -8,7 +8,7 @@ import {notFound} from 'next/navigation'
 import {HubSpotChatEmbed, HubSpotChatLink, HubSpotForm} from 'sanity-plugin-hubspot/react'
 import {resolveContentType} from 'sanity-plugin-hubspot/server'
 
-import {client, PAGE_QUERY, type FormValue, type Page} from '../../lib/sanity'
+import {client, PAGE_QUERY, type FormValue, type Page} from '../../../lib/sanity'
 import {sendForm} from '../actions'
 import {HubSpot} from '../HubSpot'
 import {Newsletter} from '../Newsletter'

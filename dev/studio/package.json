@@ -3,10 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./config": "./config.ts"
+  },
   "scripts": {
     "build": "sanity build",
     "dev": "sanity dev",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "sanity deploy --url confederation-hubspot-test"
   },
   "dependencies": {
     "react": "^19.3.1",

@@ -9,7 +9,7 @@ import {
   type HubSpotSubmitResult,
 } from 'sanity-plugin-hubspot/server'
 
-import {client} from '../lib/sanity'
+import {client} from '../../lib/sanity'
 
 /** Sends from the site's server, as the README shows: the form is read from Sanity, never the post. */
 export async function sendForm(data: FormData): Promise<HubSpotSubmitResult> {
