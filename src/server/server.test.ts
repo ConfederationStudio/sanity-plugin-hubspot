@@ -117,6 +117,17 @@ describe('hubspotRoutes', () => {
     expect(preflight.headers.get('access-control-allow-origin')).toBe(STUDIO)
   })
 
+  it('answers a Studio on the site’s own domain, which names its origin when it pastes a key', async () => {
+    const {call} = setup({secretKey: SECRET})
+    const saved = await call('POST', '/connection', {
+      token: 'admin-token',
+      origin: 'https://site.test',
+      body: {key: 'pat-eu1-good-key'},
+    })
+    expect(saved.status).toBe(200)
+    expect(saved.headers.get('access-control-allow-origin')).toBeNull()
+  })
+
   it('answers members of the project only', async () => {
     const {call} = setup({token: 'env-key'})
     expect(await call('GET', '/forms')).toMatchObject({status: 401, body: {error: 'signed-out'}})

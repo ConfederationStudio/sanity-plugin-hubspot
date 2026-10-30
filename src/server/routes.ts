@@ -194,9 +194,11 @@ export function hubspotRoutes(options: HubSpotRoutesOptions): HubSpotRoutes {
 
   async function handle(request: Request): Promise<Response> {
     const origin = request.headers.get('origin')
-    if (origin !== null && !origins.has(origin))
+    // A browser names the origin on a POST from the site's own pages too, such as a Studio there.
+    const own = origin === new URL(request.url).origin
+    if (origin !== null && !own && !origins.has(origin))
       return reply(403, {error: 'forbidden-origin'} satisfies HubSpotRouteError, {vary: 'Origin'})
-    const cors = corsHeaders(origin)
+    const cors = corsHeaders(own ? null : origin)
     const fail = (code: HubSpotRouteErrorCode) =>
       reply(STATUS[code], {error: code} satisfies HubSpotRouteError, cors)
 
