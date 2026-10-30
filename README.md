@@ -274,16 +274,17 @@ export function HubSpot({page, consented, draft}) {
 }
 ```
 
-- Nothing loads until `consent` is true. When it turns false, HubSpot removes its cookies. `consent="hubspot"` loads the script at once and leaves consent to HubSpot's own cookie banner.
+- Nothing loads until `consent` is true. When it turns false, HubSpot removes its cookies. When it turns true again, on that page or another, HubSpot tracks again and counts the page. `consent="hubspot"` loads the script at once and leaves consent to HubSpot's own cookie banner.
+- Render it in each page, as here, or once in a layout. Either way, each page change is counted once. A page without a content type leaves the choice to HubSpot, rather than taking the last page's.
 - `disabled` keeps editors out of the numbers in draft mode and Presentation previews.
 - `createTracker()` makes the same calls without React.
 
 ### Chat
 
-Chatflows, bots and office hours stay in HubSpot. On the site:
+Chatflows, bots and office hours stay in HubSpot. The chat comes with the tracking script, so it waits for consent too: HubSpot's script sets its tracking cookies even when told not to track. On the site:
 
 - `<HubSpotChat hidden>` hides the widget on a page (the `hubspot.page` field's `hideChat`).
-- `<HubSpotChat inline />` with `<HubSpotChatEmbed />` draws the chat inside a section, for the `hubspot.chat` block.
+- `<HubSpotChat inline />` with `<HubSpotChatEmbed />` draws the chat inside a section, for the `hubspot.chat` block. HubSpot's frame there has an iframe's default size, 300 by 150, so give `#hubspot-conversations-inline-iframe` a width and height in your styles.
 - `<HubSpotChatLink fallbackUrl="/contact">` opens the chat, or goes to the fallback when chat can't open, for the `hubspot.openChat` annotation. `openHubSpotChat()` does the same from your own button.
 
 ## Options
@@ -343,9 +344,6 @@ A migration script follows in 1.1.
 
 ## Not yet verified
 
-- That a Service Key works for every call the route makes, and for the authenticated submit.
-- That `setContentType` takes effect when it changes between page changes in a single-page app.
-- Whether chat may run before tracking consent.
 - That HubSpot's current embed draws a frame added after a page change in a single-page app.
 
 ## Developing

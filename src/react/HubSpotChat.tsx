@@ -1,13 +1,12 @@
 import {
   useEffect,
   useLayoutEffect,
-  useRef,
   type AnchorHTMLAttributes,
   type HTMLAttributes,
   type MouseEvent,
 } from 'react'
 
-import {hubspotWindow, type HubSpotConversations} from './globals'
+import {hubspotWindow, type HubSpotChatWidget, type HubSpotConversations} from './globals'
 
 /** Where an inline chat draws: the element `<HubSpotChatEmbed>` renders. */
 export const HUBSPOT_INLINE_CHAT_ID = 'hubspot-chat-inline'
@@ -41,6 +40,23 @@ export interface HubSpotChatProps {
 }
 
 /**
+ * Where the widget is drawn: in a page's chat block, or `null` for the bubble. Every
+ * `<HubSpotChat>` on the page shares this, as they share the widget: a site that renders it in
+ * each page gets a new one on each page change.
+ */
+let drawn: {place: Element | null; path?: string} | undefined
+let removed = false
+let refreshing: ReturnType<typeof setTimeout> | undefined
+
+function remove(widget: HubSpotChatWidget) {
+  clearTimeout(refreshing)
+  refreshing = undefined
+  widget.remove()
+  drawn = undefined
+  removed = true
+}
+
+/**
  * Controls HubSpot's chat, which the tracking script brings, through its widget SDK. Chatflows,
  * bots and office hours stay in HubSpot. Place it next to `<HubSpotTracker>`.
  */
@@ -50,17 +66,11 @@ export function HubSpotChat({
   path,
   consent = true,
 }: HubSpotChatProps) {
-  const last = useRef<{inline: boolean} | null>(null)
-
   // Before the tracker's effect loads the script, so the widget waits to be told.
   useLayoutEffect(() => {
     const w = hubspotWindow()
-    w.hsConversationsSettings = {
-      ...w.hsConversationsSettings,
-      loadImmediately: false,
-      inlineEmbedSelector: inline ? `#${HUBSPOT_INLINE_CHAT_ID}` : undefined,
-    }
-  }, [inline])
+    w.hsConversationsSettings = {...w.hsConversationsSettings, loadImmediately: false}
+  }, [])
 
   useEffect(() => {
     let live = true
@@ -69,22 +79,37 @@ export function HubSpotChat({
       const {widget} = chat
       if (!consent) {
         chat.clear({resetWidget: true})
-        widget.remove()
-        last.current = null
+        remove(widget)
         return
       }
       if (hidden) {
-        widget.remove()
-        last.current = null
+        remove(widget)
         return
       }
-      // HubSpot allows one load or refresh a second, so each page makes one call.
-      if (!widget.status().loaded) widget.load()
-      else if (last.current?.inline !== inline) {
-        widget.remove()
-        widget.load()
-      } else widget.refresh()
-      last.current = {inline}
+      const place = inline ? document.getElementById(HUBSPOT_INLINE_CHAT_ID) : null
+      if (drawn?.place === place) {
+        // HubSpot allows one load or refresh a second, so each page makes one call. A refresh
+        // still to come covers this page too.
+        if (drawn.path !== path && !refreshing) widget.refresh()
+        drawn.path = path
+        return
+      }
+      // HubSpot removes the widget from where its settings say it is, so they change after.
+      if (drawn || widget.status().loaded) remove(widget)
+      const w = hubspotWindow()
+      w.hsConversationsSettings = {
+        ...w.hsConversationsSettings,
+        inlineEmbedSelector: inline ? `#${HUBSPOT_INLINE_CHAT_ID}` : undefined,
+      }
+      widget.load()
+      drawn = {place, path}
+      // Loaded again after a removal, an inline widget stays blank until refreshed.
+      if (removed) {
+        refreshing = setTimeout(() => {
+          refreshing = undefined
+          widget.refresh()
+        }, 1000)
+      }
     })
     return () => {
       live = false
