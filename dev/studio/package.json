@@ -10,7 +10,7 @@
     "build": "sanity build",
     "dev": "sanity dev",
     "typecheck": "tsc --noEmit",
-    "deploy": "sanity deploy --url confederation-hubspot-test"
+    "deploy": "SANITY_STUDIO_HUBSPOT_API=https://sanity-plugin-hubspot-test.vercel.app/api/hubspot sanity deploy --no-auto-updates"
   },
   "dependencies": {
     "react": "^19.3.1",
