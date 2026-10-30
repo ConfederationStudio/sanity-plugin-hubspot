@@ -16,14 +16,14 @@ import {
 } from '@sanity/ui'
 import {useToast} from '@sanity/ui/toast'
 import {useCallback, useEffect, useMemo, useState} from 'react'
-import {useClient, type SanityClient} from 'sanity'
+import {useClient} from 'sanity'
 import {IntentLink} from 'sanity/router'
 
-import {FORM_COPY_TYPE, formCopyId, SETTINGS_ID, SETTINGS_TYPE} from '../core/ids'
-import {MODEL_VERSION, type HubSpotAccount, type HubSpotFormDefinition} from '../core/model'
+import {FORM_COPY_TYPE, SETTINGS_ID, SETTINGS_TYPE} from '../core/ids'
+import type {HubSpotAccount, HubSpotFormDefinition} from '../core/model'
 import type {HubSpotConnection} from '../core/route'
 import {API_VERSION, type HubSpotPluginConfig} from './config'
-import {formatDate, markArchived, writeCopy} from './copies'
+import {formatDate, syncCopies, type CopyState} from './copies'
 import {FormStatus} from './FormParts'
 import {failureText, useRoute, type RouteClient} from './route'
 
@@ -33,16 +33,11 @@ interface Usage {
   title?: string
 }
 
-interface CopyFacts {
-  _id: string
-  formId: string
+interface CopyFacts extends CopyState {
   name?: string
-  archived?: boolean
   drawable?: boolean
   undrawable?: HubSpotFormDefinition['undrawable']
   progressive?: boolean
-  updatedAt?: string
-  version?: number
   usedOn: Usage[]
 }
 
@@ -70,77 +65,6 @@ function editorUrl(account: HubSpotAccount | undefined, formId: string): string 
   const domain =
     account.uiDomain && UI_DOMAIN.test(account.uiDomain) ? account.uiDomain : 'app.hubspot.com'
   return `https://${domain}/forms/${account.portalId}/editor/${formId}/edit/form`
-}
-
-type SyncResult = {written: number; archived: number; failed: number}
-
-const COPY_REF = /"_ref":"(hubspot-form-[0-9a-f-]{36})"/g
-
-/**
- * The forms documents point at that have no copy yet: picked by an editor whose role couldn't
- * write one, or set by a migration. Found through the documents that reference them.
- */
-async function uncopied(
-  client: SanityClient,
-  forms: HubSpotFormDefinition[],
-  copies: CopyFacts[],
-): Promise<HubSpotFormDefinition[]> {
-  const copied = new Set(copies.map((copy) => copy._id))
-  const byCopyId = new Map(forms.map((form) => [formCopyId(form.formId), form]))
-  const missing = [...byCopyId.keys()].filter((id) => !copied.has(id))
-  if (missing.length === 0) return []
-  const documents = await client.fetch<unknown[]>('*[references($ids)]', {ids: missing})
-  const referenced = new Set(
-    Array.from(JSON.stringify(documents).matchAll(COPY_REF), (match) => match[1]),
-  )
-  return missing.flatMap((id) => (referenced.has(id) ? (byCopyId.get(id) ?? []) : []))
-}
-
-/**
- * Brings the copies up to date: a form in use with no copy gets one, a form HubSpot changed is
- * copied again, and one it no longer lists is asked for by id, then marked archived if HubSpot
- * has none. `all` copies every one.
- */
-async function syncCopies(
-  client: SanityClient,
-  route: RouteClient,
-  forms: HubSpotFormDefinition[],
-  copies: CopyFacts[],
-  all: boolean,
-): Promise<SyncResult> {
-  const listed = new Map(forms.map((form) => [form.formId, form]))
-  const firsts = (await uncopied(client, forms, copies)).map(async (form): Promise<'written'> => {
-    await writeCopy(client, form)
-    return 'written'
-  })
-  const outcomes = await Promise.allSettled([
-    ...firsts,
-    ...copies.map(async (copy): Promise<'written' | 'archived' | 'kept'> => {
-      const fresh = listed.get(copy.formId)
-      if (fresh) {
-        const stale =
-          copy.archived || copy.updatedAt !== fresh.updatedAt || copy.version !== MODEL_VERSION
-        if (!all && !stale) return 'kept'
-        await writeCopy(client, fresh)
-        return 'written'
-      }
-      if (copy.archived && !all) return 'kept'
-      const {form} = await route.form(copy.formId)
-      if (form) {
-        await writeCopy(client, form)
-        return 'written'
-      }
-      if (copy.archived) return 'kept'
-      await markArchived(client, copy.formId)
-      return 'archived'
-    }),
-  ])
-  const result: SyncResult = {written: 0, archived: 0, failed: 0}
-  for (const outcome of outcomes) {
-    if (outcome.status === 'rejected') result.failed++
-    else if (outcome.value !== 'kept') result[outcome.value]++
-  }
-  return result
 }
 
 function UsedOn({usage}: {usage: Usage[]}) {

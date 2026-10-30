@@ -14,8 +14,8 @@ import {
   copyDocument,
   fieldValue,
   formatDate,
+  keepCopy,
   markArchived,
-  writeCopy,
   type HubSpotFormCopy,
   type HubSpotFormValue,
 } from './copies'
@@ -32,12 +32,27 @@ function readDraws(options: unknown): string[] | undefined {
     : undefined
 }
 
+/** What an editor whose role can't write the copy is told, by whether the site has an older one. */
+const REFUSED = {
+  stale: {
+    title: 'Form copy not updated',
+    description:
+      'Your role can’t write the form’s copy, so the site draws the form as it was last copied. Someone who can create documents can open the HubSpot tab to update it.',
+  },
+  missing: {
+    title: 'Form not copied',
+    description:
+      'Your role can’t write the form’s copy, so the site can’t draw it yet. Someone who can create documents can open the HubSpot tab to copy it.',
+  },
+}
+
 export type FormInputProps = ObjectInputProps<HubSpotFormValue> & {config: HubSpotPluginConfig}
 
 /**
  * The `hubspot.form` field: the picked form, whether the site can draw it, and its fields. A
- * pick writes the form's copy as the editor, then saves the field; when the editor's role can't
- * write the copy, the pick is still saved, and the HubSpot tab writes the copy later.
+ * pick writes the form's copy as the editor, unless it is already current, then saves the field;
+ * when the editor's role can't write the copy, the pick is still saved, and the HubSpot tab
+ * writes the copy later.
  */
 export function FormInput(props: FormInputProps) {
   const {value, onChange, readOnly, config, schemaType, path} = props
@@ -76,19 +91,11 @@ export function FormInput(props: FormInputProps) {
 
   const keep = useCallback(
     async (form: HubSpotFormDefinition) => {
-      try {
-        await writeCopy(client, form)
-        setLoaded({formId: form.formId, copy: copyDocument(form)})
-        return true
-      } catch {
-        toast.push({
-          status: 'warning',
-          title: 'Form chosen, but not copied',
-          description:
-            'Your role can’t write the form’s copy, so the site can’t draw it yet. Someone who can create documents can open the HubSpot tab to copy it.',
-        })
-        return false
-      }
+      const outcome = await keepCopy(client, form)
+      if (outcome === 'written') setLoaded({formId: form.formId, copy: copyDocument(form)})
+      if (outcome === 'stale' || outcome === 'missing')
+        toast.push({status: 'warning', ...REFUSED[outcome]})
+      return outcome
     },
     [client, toast],
   )
@@ -115,7 +122,9 @@ export function FormInput(props: FormInputProps) {
     try {
       const {form} = await route.form(formId)
       if (form) {
-        if (await keep(form)) toast.push({status: 'success', title: 'Form refreshed from HubSpot'})
+        const outcome = await keep(form)
+        if (outcome === 'written' || outcome === 'current')
+          toast.push({status: 'success', title: 'Form refreshed from HubSpot'})
         if (form.name !== name) onChange(set(form.name, ['name']))
       } else {
         await markArchived(client, formId).catch(() => undefined)
