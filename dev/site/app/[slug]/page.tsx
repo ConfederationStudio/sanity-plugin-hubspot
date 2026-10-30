@@ -5,11 +5,12 @@ import {
 } from '@portabletext/react'
 import Link from 'next/link'
 import {notFound} from 'next/navigation'
-import {HubSpotChatLink, HubSpotForm} from 'sanity-plugin-hubspot/react'
+import {HubSpotChatEmbed, HubSpotChatLink, HubSpotForm} from 'sanity-plugin-hubspot/react'
 import {resolveContentType} from 'sanity-plugin-hubspot/server'
 
 import {client, PAGE_QUERY, type FormValue, type Page} from '../../lib/sanity'
 import {sendForm} from '../actions'
+import {HubSpot} from '../HubSpot'
 import {Newsletter} from '../Newsletter'
 
 export const dynamic = 'force-dynamic'
@@ -21,9 +22,9 @@ const components: PortableTextComponents = {
   types: {
     'hubspot.form': ({value}: {value: FormValue}) => <HubSpotForm form={value.definition} />,
     'hubspot.chat': ({value}: {value: {title?: string}}) => (
-      <aside data-chat-placeholder="">
+      <aside>
         {value.title && <h3>{value.title}</h3>}
-        <p>An inline HubSpot chat draws here once the site has an account.</p>
+        <HubSpotChatEmbed />
       </aside>
     ),
   },
@@ -43,8 +44,14 @@ export default async function PageRoute({params}: {params: Promise<{slug: string
   if (!page) notFound()
 
   const contentType = resolveContentType(page.hubspot?.contentType, page._type, CONTENT_TYPES)
+  const inlineChat = page.body?.some((block) => block._type === 'hubspot.chat') ?? false
   return (
     <>
+      <HubSpot
+        contentType={contentType}
+        hideChat={page.hubspot?.hideChat}
+        inlineChat={inlineChat}
+      />
       <p>
         <Link href="/">All pages</Link>
       </p>

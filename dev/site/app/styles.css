@@ -66,3 +66,10 @@ button {
   padding: 0.5rem 1rem;
   justify-self: start;
 }
+
+/* HubSpot draws the inline chat in a frame it sizes to an iframe's default, 300 by 150. */
+#hubspot-conversations-inline-iframe {
+  width: 100%;
+  height: 32rem;
+  border: 0;
+}
