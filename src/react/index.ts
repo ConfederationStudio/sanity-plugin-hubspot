@@ -39,6 +39,7 @@ export {fillFromAddress, sendHubSpotForm} from './send'
 export {createTracker, type HubSpotTracking, type HubSpotTrackerOptions} from './tracker'
 
 export {CONTENT_TYPES, resolveContentType, type HubSpotContentType} from '../core/content-type'
+export {readFormCopy, type HubSpotFormCopy, type Loosely} from '../core/copy'
 export {fitsFields, type HubSpotFit} from '../core/drawable'
 export {FORM_COPY_TYPE, FORM_TYPE, formCopyId, HUBSPOT_FORM_PROJECTION} from '../core/ids'
 export {

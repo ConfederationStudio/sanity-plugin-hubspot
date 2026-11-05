@@ -1,6 +1,7 @@
+import {readFormCopy, type HubSpotFormCopy} from '../core/copy'
 import {allFields} from '../core/drawable'
 import {submitUrl} from '../core/hosts'
-import type {HubSpotFormDefinition, HubSpotSubmitResult} from '../core/model'
+import type {HubSpotSubmitResult} from '../core/model'
 import {inputName} from '../core/names'
 import {isSampleFormId} from '../core/sample'
 import {readHubSpotReply, readHutk, readSubmission, type FormDataLike} from '../core/submission'
@@ -11,9 +12,11 @@ import {readHubSpotReply, readHutk, readSubmission, type FormDataLike} from '../
  * The page sent is the one the browser is on, unless the data names another.
  */
 export async function sendHubSpotForm(
-  form: HubSpotFormDefinition,
+  copy: HubSpotFormCopy,
   data: FormDataLike,
 ): Promise<HubSpotSubmitResult> {
+  const form = readFormCopy(copy)
+  if (!form) return {status: 'failed'}
   const read = readSubmission(form, data, {
     hutk: readHutk(document.cookie),
     pageUri: window.location.href,
@@ -41,11 +44,11 @@ export async function sendHubSpotForm(
  * `utm_source` field takes `?utm_source=` when the address has it.
  */
 export function fillFromAddress(
-  form: HubSpotFormDefinition,
+  copy: HubSpotFormCopy,
   data: FormData,
   search: URLSearchParams,
 ): void {
-  for (const field of allFields(form.groups)) {
+  for (const field of allFields(readFormCopy(copy)?.groups ?? [])) {
     if (!field.hidden) continue
     const value = search.get(field.name)
     if (value !== null) data.set(inputName(field), value.slice(0, 1_000))

@@ -3,6 +3,7 @@ import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/reac
 import {StrictMode} from 'react'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
+import {asTypeGenCopy, markForVisualEditing} from '../__fixtures__/copies'
 import type {HubSpotFormDefinition} from '../core/model'
 import {parseForm} from '../core/parse'
 import {SAMPLE_FORMS} from '../core/sample'
@@ -50,7 +51,7 @@ describe('HubSpotForm', () => {
     expect(screen.getByLabelText(/First name/)).toBeTruthy()
     expect(screen.getByLabelText(/Email/)).toBeTruthy()
     expect(screen.getByRole('button', {name: 'Send'})).toBeTruthy()
-    expect(screen.getByText('I agree to my details being stored.')).toBeTruthy()
+    expect(screen.getByRole('checkbox', {name: 'I agree to my details being stored.'})).toBeTruthy()
     expect(screen.queryByLabelText(/Company/)).toBeNull()
   })
 
@@ -97,6 +98,41 @@ describe('HubSpotForm', () => {
       context: {pageUri: 'http://localhost:3000/join?utm_source=newsletter'},
     })
     expect(onSent).toHaveBeenCalledOnce()
+  })
+
+  it('draws and sends a copy marked for visual editing in draft mode', async () => {
+    window.history.replaceState(null, '', '/join')
+    const fetch = vi.fn(async (_url: string, _init?: RequestInit) => Response.json({}))
+    vi.stubGlobal('fetch', fetch)
+    const {container} = render(<HubSpotForm form={markForVisualEditing(live)} />)
+    // Nothing drawn carries a mark: not a label, a name, nor the button.
+    expect(container.innerHTML).not.toMatch(/[\u{200B}-\u{200D}\u{2060}-\u{2063}\u{FEFF}]/u)
+    fireEvent.change(container.querySelector('input[name="email"]') ?? document.body, {
+      target: {value: 'ada@example.com'},
+    })
+    fireEvent.click(screen.getByRole('button', {name: 'Submit'}))
+    await waitFor(() => expect(fetch).toHaveBeenCalledOnce())
+
+    const [url, init] = fetch.mock.calls[0] ?? []
+    expect(url).toBe(
+      `https://api.hsforms.com/submissions/v3/integration/submit/4242/${live.formId}`,
+    )
+    expect(JSON.parse(typeof init?.body === 'string' ? init.body : '{}').fields).toEqual([
+      {objectTypeId: '0-1', name: 'email', value: 'ada@example.com'},
+    ])
+  })
+
+  it('takes a copy as Sanity TypeGen types it', async () => {
+    const copy = asTypeGenCopy(live)
+    render(<HubSpotForm form={copy} />)
+    expect(screen.getByLabelText(/Email/)).toBeTruthy()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({})),
+    )
+    const data = new FormData()
+    data.set('email', 'ada@example.com')
+    await expect(sendHubSpotForm(copy ?? {}, data)).resolves.toMatchObject({status: 'sent'})
   })
 
   it('sends through a server action when given one', async () => {

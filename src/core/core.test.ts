@@ -1,6 +1,8 @@
 import {describe, expect, it} from 'vitest'
 
+import {markForVisualEditing} from '../__fixtures__/copies'
 import {answerOf, meetsCondition} from './conditions'
+import {readFormCopy} from './copy'
 import {fitsFields} from './drawable'
 import {embedScriptUrl, regionFromUiDomain, submitUrl, trackingScriptUrl} from './hosts'
 import type {RawForm} from './hubspot'
@@ -337,5 +339,54 @@ describe('hosts and ids', () => {
 
   it('reads HubSpot’s HTML as text', () => {
     expect(plainText('<p>Tom &amp; Jerry<br>&#8217;s&nbsp;show</p>')).toBe('Tom & Jerry ’s show')
+  })
+})
+
+describe('readFormCopy', () => {
+  const parsed = parseForm(raw(), {portalId: '123', region: 'eu1'})
+  const forms = [...(parsed ? [parsed] : []), ...SAMPLE_FORMS]
+  const json = structuredClone
+
+  it('reads a copy back as the form it was written from', () => {
+    expect(forms).toHaveLength(3)
+    for (const form of forms) expect(readFormCopy(json(form))).toEqual(form)
+  })
+
+  it('drops the marks draft mode adds to every string', () => {
+    for (const form of forms) expect(readFormCopy(markForVisualEditing(form))).toEqual(form)
+  })
+
+  it('keeps a joiner that belongs to the text', () => {
+    const [form] = SAMPLE_FORMS
+    if (!form) throw new Error('No sample form')
+    const label = 'Your role \u{1F469}\u{200D}\u{1F4BB}'
+    const copy = json(form)
+    const field = copy.groups[0]?.fields[0]
+    if (field) field.label = label
+    expect(readFormCopy(copy)?.groups[0]?.fields[0]?.label).toBe(label)
+  })
+
+  it('leaves a copy it can’t read in full to HubSpot’s embed', () => {
+    const [form] = SAMPLE_FORMS
+    if (!form) throw new Error('No sample form')
+    for (const broken of [
+      {...json(form), consent: {type: 'whatever'}},
+      {...json(form), groups: [{_key: 'g0', fields: [{name: 'email', type: 'rating'}]}]},
+      {formId: form.formId, portalId: '123', embed: 'v4'},
+    ]) {
+      const read = readFormCopy(broken)
+      expect(read).toMatchObject({formId: form.formId, drawable: false})
+    }
+    expect(readFormCopy({formId: form.formId, portalId: '123', embed: 'v4'})).toMatchObject({
+      portalId: '123',
+      embed: 'v4',
+      groups: [],
+    })
+  })
+
+  it('reads nothing without a form id', () => {
+    expect(readFormCopy(null)).toBeNull()
+    expect(readFormCopy({name: 'Demo request'})).toBeNull()
+    expect(readFormCopy({formId: 'not-a-guid'})).toBeNull()
   })
 })

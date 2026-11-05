@@ -7,6 +7,7 @@ export {hubspotRoutes, type HubSpotRoutes, type HubSpotRoutesOptions} from './ro
 export {getHubSpotForm, submitForm, type SubmitFormOptions} from './submit'
 
 export {CONTENT_TYPES, resolveContentType, type HubSpotContentType} from '../core/content-type'
+export {readFormCopy, type HubSpotFormCopy, type Loosely} from '../core/copy'
 export {FORM_COPY_TYPE, FORM_TYPE, formCopyId, HUBSPOT_FORM_PROJECTION, isFormId} from '../core/ids'
 export {
   postedFormId,

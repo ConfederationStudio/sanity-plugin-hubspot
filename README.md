@@ -119,6 +119,8 @@ import {HubSpotForm} from 'sanity-plugin-hubspot/react'
 ;<HubSpotForm form={page.form?.definition} />
 ```
 
+`form` takes the copy as the query returns it, so the type Sanity TypeGen writes for the query fits as it is. In draft mode, visual editing hides marks in the query's strings; `<HubSpotForm>`, `sendHubSpotForm` and `submitForm` drop them from the copy, so they never reach HubSpot in a field's name or an answer. `layoutForm` and `fitsFields` take the plugin's own model: pass the copy through `readFormCopy` first.
+
 In a React Server Component, import plain helpers such as `HUBSPOT_FORM_PROJECTION` and `resolveContentType` from `/server`: everything in `/react` is client code.
 
 ## Data structure
@@ -316,7 +318,7 @@ Chatflows, bots and office hours stay in HubSpot. The chat comes with the tracki
 
 | Prop                             |                                                                                                  |
 | -------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `form`                           | The copy: `definition->` on a `hubspot.form` field.                                              |
+| `form`                           | The copy: `definition->` on a `hubspot.form` field, as the query returns it.                     |
 | `action`                         | A server action that calls `submitForm`. Without it, the browser sends to HubSpot.               |
 | `fieldComponents`                | Your component for each field kind.                                                              |
 | `components`                     | Your `Group`, `RichText`, `Consent`, `Submit` and `Status`.                                      |

@@ -1,11 +1,11 @@
-import {useEffect, useId, useRef} from 'react'
+import {useEffect, useId, useMemo, useRef} from 'react'
 
+import {readFormCopy, type HubSpotFormCopy} from '../core/copy'
 import {DEFAULT_REGION, embedScriptUrl} from '../core/hosts'
-import type {HubSpotFormDefinition} from '../core/model'
 import {hubspotWindow, loadScript} from './globals'
 
 export interface HubSpotEmbedProps {
-  form: Pick<HubSpotFormDefinition, 'formId' | 'portalId' | 'region' | 'embed'>
+  form: Pick<HubSpotFormCopy, 'formId' | 'portalId' | 'region' | 'embed'>
   className?: string
 }
 
@@ -17,12 +17,15 @@ export interface HubSpotEmbedProps {
 export function HubSpotEmbed({form, className}: HubSpotEmbedProps) {
   const target = useRef<HTMLDivElement>(null)
   const id = `hubspot-embed-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
-  const {formId, portalId, embed} = form
-  const region = form.region ?? DEFAULT_REGION
+  const read = useMemo(() => readFormCopy(form), [form])
+  const formId = read?.formId
+  const portalId = read?.portalId
+  const embed = read?.embed
+  const region = read?.region ?? DEFAULT_REGION
 
   useEffect(() => {
     const element = target.current
-    if (!portalId || !element) return undefined
+    if (!formId || !portalId || !embed || !element) return undefined
     let live = true
     if (embed === 'v4') {
       // The current loader draws the frames it finds as it runs, so after a page change in a
@@ -44,7 +47,7 @@ export function HubSpotEmbed({form, className}: HubSpotEmbedProps) {
     }
   }, [embed, formId, id, portalId, region])
 
-  if (!portalId) return null
+  if (!formId || !portalId) return null
   return embed === 'v4' ? (
     <div
       ref={target}

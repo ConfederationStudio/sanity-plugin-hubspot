@@ -1,5 +1,6 @@
 export * from './conditions'
 export * from './content-type'
+export * from './copy'
 export * from './drawable'
 export * from './hosts'
 export * from './ids'

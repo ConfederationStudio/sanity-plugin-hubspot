@@ -1,5 +1,6 @@
 import {beforeEach, describe, expect, it} from 'vitest'
 
+import {markForVisualEditing} from '../__fixtures__/copies'
 import type {RawForm} from '../core/hubspot'
 import {SAMPLE_FORMS} from '../core/sample'
 import {sealedFor} from './connection'
@@ -270,6 +271,18 @@ describe('submitForm', () => {
     const result = await submitForm(form, body(), {token: 'service-key', fetch: net.fetch})
     expect(result).toEqual({status: 'sent', message: '<p>Thanks</p>'})
     expect(seen.map((url) => url.includes('/secure/'))).toEqual([true, false])
+  })
+
+  it('sends a copy read in draft mode without the marks visual editing adds', async () => {
+    const net = network()
+    let sent: unknown
+    net.submit = (_url, init) => {
+      sent = JSON.parse(typeof init?.body === 'string' ? init.body : '{}')
+      return Response.json({})
+    }
+    const result = await submitForm(markForVisualEditing(form), body(), {fetch: net.fetch})
+    expect(result.status).toBe('sent')
+    expect(sent).toMatchObject({fields: [{name: 'email', value: 'ada@example.com'}]})
   })
 
   it('sends the visit HubSpot needs', async () => {

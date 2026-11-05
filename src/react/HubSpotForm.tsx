@@ -10,14 +10,10 @@ import {
   type SubmitEvent,
 } from 'react'
 
+import {readFormCopy, type HubSpotFormCopy} from '../core/copy'
 import {allFields} from '../core/drawable'
 import {layoutForm, type HubSpotAnswers, type HubSpotFieldView} from '../core/layout'
-import type {
-  HubSpotFieldError,
-  HubSpotFieldType,
-  HubSpotFormDefinition,
-  HubSpotSubmitResult,
-} from '../core/model'
+import type {HubSpotFieldError, HubSpotFieldType, HubSpotSubmitResult} from '../core/model'
 import {FORM_INPUT, HONEYPOT_INPUT, inputName, PAGE_NAME_INPUT, PAGE_URI_INPUT} from '../core/names'
 import {isHttpUrl} from '../core/text'
 import {defaultFieldComponents, type HubSpotFieldProps, type HubSpotFieldState} from './fields'
@@ -60,8 +56,11 @@ export interface HubSpotFormProps extends Omit<
   FormHTMLAttributes<HTMLFormElement>,
   'action' | 'onSubmit' | 'children'
 > {
-  /** The form's copy, from the page's query: `definition->` on a `hubspot.form` field. */
-  form: HubSpotFormDefinition | null | undefined
+  /**
+   * The form's copy, from the page's query: `definition->` on a `hubspot.form` field. The type
+   * Sanity TypeGen writes for it fits.
+   */
+  form: HubSpotFormCopy | null | undefined
   /**
    * Sends from the site's server: a server action that calls `submitForm`. Without one, the
    * browser sends to HubSpot's public endpoint.
@@ -96,7 +95,7 @@ const strings = (values: FormDataEntryValue[]): string[] =>
  */
 export function HubSpotForm(props: HubSpotFormProps) {
   const {
-    form,
+    form: copy,
     action,
     fieldComponents,
     components,
@@ -109,6 +108,8 @@ export function HubSpotForm(props: HubSpotFormProps) {
     onSent,
     ...formProps
   } = props
+  // Read once per copy: this also drops the hidden characters draft mode adds to its text.
+  const form = useMemo(() => readFormCopy(copy), [copy])
   const baseId = useId()
   const [typed, setTyped] = useState<HubSpotAnswers>({})
   const [errors, setErrors] = useState<Record<string, HubSpotFieldError>>({})

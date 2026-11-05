@@ -1,3 +1,4 @@
+import {readFormCopy, type HubSpotFormCopy} from '../core/copy'
 import {submitUrl} from '../core/hosts'
 import type {HubSpotFormDefinition, HubSpotSubmitResult} from '../core/model'
 import {parseForm} from '../core/parse'
@@ -34,10 +35,12 @@ export interface SubmitFormOptions {
  * do next: the thank-you, the errors to show, or that it failed.
  */
 export async function submitForm(
-  form: HubSpotFormDefinition,
+  copy: HubSpotFormCopy,
   data: FormDataLike,
   options: SubmitFormOptions = {},
 ): Promise<HubSpotSubmitResult> {
+  const form = readFormCopy(copy)
+  if (!form) return {status: 'failed'}
   const context = {...(options.headers && submissionContext(options.headers)), ...options.context}
   const read = readSubmission(form, data, context)
   if (read.status === 'invalid') return {status: 'invalid', errors: read.errors}
