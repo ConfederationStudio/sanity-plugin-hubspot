@@ -250,7 +250,7 @@ const formik = useFormik({initialValues: {}, onSubmit: () => {}})
 
 ### Forms the site can't draw
 
-A form with reCAPTCHA on, a file upload, a payment field, a follow-up on a date window, or a legitimate interest the submit API can't record is shown with HubSpot's own embed (`<HubSpotEmbed>`), current or legacy as the form is set in HubSpot. The picker and the tab say which forms these are, and why. Progressive fields don't stop a form from being drawn; the site leaves them out.
+A form with reCAPTCHA on, a file upload, a payment field, a follow-up on a date window, or a legitimate interest the submit API can't record is shown with HubSpot's own embed (`<HubSpotEmbed>`), current or legacy as the form is set in HubSpot, and either draws again after a page change in a single-page app. The picker and the tab say which forms these are, and why. Progressive fields don't stop a form from being drawn; the site leaves them out.
 
 ### Tracking
 
@@ -346,10 +346,6 @@ The form toolkit's `hubSpotForm` field saves a form's id as text, and the site e
 3. Replace the embed with `<HubSpotForm form={doc.form?.definition} />`.
 
 A migration script follows in 1.1.
-
-## Not yet verified
-
-- That HubSpot's current embed draws a frame added after a page change in a single-page app.
 
 ## Developing
 

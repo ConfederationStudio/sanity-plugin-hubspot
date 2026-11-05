@@ -59,7 +59,7 @@ function inject(src: string): Promise<void> {
 
 /**
  * Loads a script once. With `again`, a script that has loaded runs once more when `again`
- * says so, for a loader that only looks for its targets as it runs.
+ * says so, for a loader that missed a target added after it ran.
  */
 export function loadScript(src: string, again?: () => boolean): Promise<void> {
   const known = scripts.get(src)

@@ -28,8 +28,8 @@ export function HubSpotEmbed({form, className}: HubSpotEmbedProps) {
     if (!formId || !portalId || !embed || !element) return undefined
     let live = true
     if (embed === 'v4') {
-      // The current loader draws the frames it finds as it runs, so after a page change in a
-      // single-page app it runs again for a frame still empty.
+      // The current loader watches the page and draws each frame as it's added, after a page
+      // change in a single-page app too. Should a frame still be empty, it runs again.
       loadScript(
         embedScriptUrl('v4', portalId, region),
         () => element.childElementCount === 0,
