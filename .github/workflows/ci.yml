@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   check:
-    name: Check and build (Node ${{ matrix.node }})
+    name: Build and check (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -23,5 +23,6 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+      # The lint reads dev/, which imports the built package.
       - run: pnpm build
+      - run: pnpm check
