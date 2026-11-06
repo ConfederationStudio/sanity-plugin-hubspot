@@ -1,8 +1,8 @@
 # sanity-plugin-hubspot
 
-HubSpot forms, tracking, page content types and live chat for Sanity. Editors pick a HubSpot form by name in the Studio; the site draws it in its own design and sends it to HubSpot.
+HubSpot forms, tracking, page content types and live chat for Sanity. Editors pick a HubSpot form by name in the Studio; the site draws it in its own design and sends it to HubSpot. It's made by Confederation Studio and isn't affiliated with or endorsed by HubSpot.
 
-> **Status:** 0.1, tried on the plugin's test Studio and on a fresh site made from Sanity's Next.js template. Until 1.0, a minor version may change the API; the [changelog](CHANGELOG.md) says how. Version 1 targets Sanity Studio 6 and React 19.2.
+> **Status:** 0.1, tried on the plugin's test Studio and on a fresh site made from Sanity's Next.js template. Until 1.0, a minor version may change the API; the [changelog](https://github.com/ConfederationStudio/sanity-plugin-hubspot/blob/main/CHANGELOG.md) says how. Version 1 targets Sanity Studio 6 and React 19.2.
 
 - **Forms.** A `hubspot.form` field and rich-text block with a searchable picker. The Studio keeps a copy of each picked form (like Mux keeps a document per video), so a page reads its form with its own GROQ query and draws it with `<HubSpotForm>`, in your components. Follow-up fields, hidden fields, consent and a honeypot are built in. A form the site can't draw (reCAPTCHA, a file upload, a payment) falls back to HubSpot's embed.
 - **Tracking.** `<HubSpotTracker>` loads HubSpot's script only after consent, counts page changes in single-page apps, stays off in draft mode, and files each page view under a content type.
