@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <title>sanity-plugin-hubspot</title>
+  <!-- Two form fields, a caret in the first, and the button under them: a form, in one colour. -->
+  <rect width="300" height="300" fill="#000"/>
+  <g fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="80" y="73" width="140" height="40" rx="9"/>
+    <path d="M100 84v18"/>
+    <rect x="80" y="133" width="140" height="40" rx="9"/>
+  </g>
+  <rect x="80" y="201" width="56" height="26" rx="13" fill="#fff"/>
+</svg>
