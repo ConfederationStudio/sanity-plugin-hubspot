@@ -1,3 +1,4 @@
+import {readFormCopy} from '../core/copy'
 import {FORM_COPY_TYPE, FORM_TYPE, formCopyId} from '../core/ids'
 import {
   MODEL_VERSION,
@@ -54,10 +55,17 @@ function typedField(field: HubSpotField): HubSpotField & {_type: string} {
   }
 }
 
+/**
+ * The document a form's copy is stored as. A copy is public wherever the dataset is, and `answered`
+ * is whatever the site's route sent, so it is read as the model first: the copy holds the model's
+ * fields, field by field, and nothing else the route may have answered with.
+ */
 export function copyDocument(
-  form: HubSpotFormDefinition,
+  answered: HubSpotFormDefinition,
   syncedAt = new Date().toISOString(),
 ): HubSpotFormCopy {
+  const form = readFormCopy(answered)
+  if (!form) throw new TypeError('A form copy needs a HubSpot form id')
   const consent =
     form.consent.type === 'explicit' || form.consent.type === 'implicit'
       ? {

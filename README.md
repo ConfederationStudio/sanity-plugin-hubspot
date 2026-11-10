@@ -142,9 +142,39 @@ A `hubspot.form` field holds the form's id and name, and a weak reference to its
 }
 ```
 
-The copy is a `hubspot.formDefinition` document whose fields are the plugin's form model: its rows and fields, follow-ups, consent, thank-you, whether the site can draw it and why not, and when HubSpot last changed it. It holds none of HubSpot's other settings, such as notification recipients. Its id has no dot, so a page can read it without a token. Anyone who can write to the dataset can rewrite it too, so the site cleans its HTML and can be told which HubSpot account is its own: see Security, below. The Studio rewrites it when an editor picks or refreshes the form and when the HubSpot tab opens. A form HubSpot no longer has is marked `archived`, never deleted, so pages that use it still point somewhere and the tab can flag them.
+The copy is a `hubspot.formDefinition` document whose fields are the plugin's form model: its rows and fields, follow-ups, consent, thank-you, whether the site can draw it and why not, and when HubSpot last changed it. It holds none of HubSpot's other settings, such as notification recipients: "What is public", below, lists every field. Its id has no dot, so a page can read it without a token. Anyone who can write to the dataset can rewrite it too, so the site cleans its HTML and can be told which HubSpot account is its own: see Security, below. The Studio rewrites it when an editor picks or refreshes the form and when the HubSpot tab opens. A form HubSpot no longer has is marked `archived`, never deleted, so pages that use it still point somewhere and the tab can flag them.
 
 The pasted key, sealed, lives in a document with the id `hubspot.settings`. The dot keeps Sanity from serving it without a token.
+
+### What is public
+
+Most Sanity datasets are public: anyone can query them without a token. This is everything the plugin writes to yours, and who can read it.
+
+| Document                                    | Who can read it                   | What it holds                                              |
+| ------------------------------------------- | --------------------------------- | ---------------------------------------------------------- |
+| A form copy, `hubspot-form-<form id>`       | Anyone, in a public dataset       | The form as a page draws it: the list below                |
+| A `hubspot.form` field on your own document | Anyone, once it is published      | The form's id, its name in HubSpot, and a link to the copy |
+| The settings, `hubspot.settings`            | Members of the project, signed in | The sealed key, and the HubSpot account it belongs to      |
+
+A form copy holds these fields and nothing else. The Studio reads what the site's route answers as the plugin's form model before it writes a copy, so anything else in the answer is left out.
+
+- The form's id and its name in HubSpot, the HubSpot account id and data centre, the form's language and which of HubSpot's embeds it uses.
+- Each row's rich text, and each field's label, property name, type, placeholder, description, options and default values. Hidden fields and follow-up fields are included, with the conditions that show them.
+- The consent texts, the subscription ids, and the lawful basis.
+- The button's text, and the thank-you message or the address a visitor is sent on to.
+- Whether the site can draw the form and why not, whether HubSpot still has it, and when it was last changed and copied.
+
+Nothing else reaches the dataset:
+
+- What visitors send goes to HubSpot and is never stored in Sanity.
+- The HubSpot key is only ever stored sealed, and an editor's token is never stored.
+- Forms nobody picked aren't copied, and HubSpot's other settings for a form, such as who is notified, aren't read.
+
+Three things follow from a copy being public:
+
+- **Every copy can be listed.** A copy is written as soon as an editor picks a form, in a draft too, and it stays after the form leaves the page or is archived in HubSpot. Once no document uses a form, delete its copy's document if the form should no longer be readable.
+- **The thank-you and the redirect aren't secret.** Don't count on a form to hide what comes after it, such as the address of a download.
+- **Form names are public.** Give a form a name in HubSpot that you don't mind visitors reading.
 
 ## The front end
 

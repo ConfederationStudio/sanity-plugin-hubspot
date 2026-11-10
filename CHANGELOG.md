@@ -11,6 +11,7 @@ Two security fixes. A form copy is a public document that anyone who can write t
 - `submitForm` with a `token` and no `portalId` now checks the form against the key's own account, asked of HubSpot once per key. Nothing is sent while HubSpot can't say whose key it is, so a revoked key no longer falls back to the public endpoint by itself: set `portalId`, and it does again.
 - A field's description is drawn through the form's `RichText` component, with `kind="description"`. Field components get `RichText` as a prop; a description now sits in a `[data-hubspot-text="description"]` element inside `[data-hubspot-description]`.
 - A copy's redirect after a send is followed only to an `http` or `https` address.
+- The Studio writes a form copy through the plugin's form model, so a copy holds the fields the README lists under "What is public" and nothing else the site's route answers with.
 
 The HubSpot tab is rebuilt. Nothing to do in your Studio.
 

@@ -79,6 +79,125 @@ describe('copyDocument', () => {
     })
   })
 
+  it('holds the model’s fields and nothing else the route answered', () => {
+    // A copy is public wherever the dataset is, so what isn't in the model must never reach it.
+    const extra = {notificationRecipients: ['sales@example.com'], internalNote: 'not for the site'}
+    const more = <T extends object>(value: T): T => Object.assign({}, value, extra)
+    const answered = more({
+      ...form,
+      portalId: '14829301',
+      region: 'eu1',
+      afterSubmit: more(form.afterSubmit),
+      consent: more(form.consent),
+      groups: form.groups.map((group) =>
+        more({
+          ...group,
+          fields: group.fields.map((field) =>
+            more({
+              ...field,
+              options: field.options.map(more),
+              followUps: field.followUps.map((followUp) =>
+                more({...followUp, when: more(followUp.when), field: more(followUp.field)}),
+              ),
+            }),
+          ),
+        }),
+      ),
+    })
+    const written = copyDocument(answered, '2026-10-27T10:00:00.000Z')
+
+    const stored = JSON.stringify(written)
+    expect(stored).not.toContain('notificationRecipients')
+    expect(stored).not.toContain('sales@example.com')
+    expect(stored).not.toContain('internalNote')
+    // What the route answered is otherwise kept whole.
+    expect(written).toMatchObject({...form, portalId: '14829301', region: 'eu1'})
+  })
+
+  it('stores only the fields the README lists as public', () => {
+    // Adding a field to the model adds it to every public copy. This list says so on purpose:
+    // extend it, and the README's "What is public", in the same change.
+    const top = [
+      '_id',
+      '_type',
+      'afterSubmit',
+      'archived',
+      'consent',
+      'drawable',
+      'embed',
+      'formId',
+      'groups',
+      'language',
+      'name',
+      'portalId',
+      'progressive',
+      'region',
+      'submitText',
+      'syncedAt',
+      'undrawable',
+      'updatedAt',
+      'version',
+    ]
+    const nested = [
+      '_key',
+      // After a send
+      'type',
+      'html',
+      'url',
+      // Rows and fields
+      'text',
+      'fields',
+      'hubspotType',
+      'objectTypeId',
+      'label',
+      'hasLabel',
+      'required',
+      'hidden',
+      'placeholder',
+      'description',
+      'defaultValues',
+      'options',
+      'value',
+      'followUps',
+      'when',
+      'operator',
+      'values',
+      'rangeStart',
+      'rangeEnd',
+      'field',
+      // Consent
+      'basis',
+      'subscriptionTypeIds',
+      'checkboxes',
+      'subscriptionTypeId',
+      'communicationText',
+      'processText',
+      'processLabel',
+      'footerText',
+      'privacyText',
+    ]
+    const allowed = new Set([...top, ...nested])
+    const found = new Set<string>()
+    const walk = (value: unknown) => {
+      if (Array.isArray(value)) value.forEach(walk)
+      else if (typeof value === 'object' && value !== null)
+        for (const [key, inner] of Object.entries(value)) {
+          found.add(key)
+          walk(inner)
+        }
+    }
+    for (const sample of SAMPLE_FORMS) {
+      const written = copyDocument({...sample, portalId: '14829301', region: 'eu1'}, changed)
+      expect(Object.keys(written).toSorted()).toEqual(top)
+      walk(written)
+    }
+    expect([...found].filter((key) => !allowed.has(key))).toEqual([])
+  })
+
+  it('refuses what has no HubSpot form id', () => {
+    expect(() => copyDocument({...form, formId: 'not-a-form'})).toThrow()
+  })
+
   it('points the field at the copy with a weak reference', () => {
     expect(fieldValue(form)).toEqual({
       _type: 'hubspot.form',
