@@ -1,6 +1,6 @@
 {
   "name": "sanity-plugin-hubspot",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "HubSpot forms, tracking, page content types and live chat for Sanity: pick a form in the Studio, draw it in your site's own design.",
   "keywords": [
     "forms",

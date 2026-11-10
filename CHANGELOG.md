@@ -2,7 +2,7 @@
 
 Until 1.0, a minor version may change the API. Each change that needs work on a site or Studio says what to do.
 
-## Unreleased
+## 0.1.1 (2026-11-10)
 
 Two security fixes. A form copy is a public document that anyone who can write to the dataset can rewrite, and the site trusted what it read from one.
 
