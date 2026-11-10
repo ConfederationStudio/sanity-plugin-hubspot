@@ -20,7 +20,7 @@ export interface HubSpotFieldView {
   hasLabel: boolean
   required: boolean
   placeholder?: string
-  /** HubSpot's HTML. */
+  /** HubSpot's HTML, cleaned. */
   description?: string
   options: HubSpotOption[]
   defaultValues: string[]

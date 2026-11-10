@@ -35,7 +35,7 @@ export type {
   HubSpotStatusProps,
   HubSpotSubmitProps,
 } from './parts'
-export {fillFromAddress, sendHubSpotForm} from './send'
+export {fillFromAddress, sendHubSpotForm, type SendHubSpotFormOptions} from './send'
 export {createTracker, type HubSpotTracking, type HubSpotTrackerOptions} from './tracker'
 
 export {CONTENT_TYPES, resolveContentType, type HubSpotContentType} from '../core/content-type'

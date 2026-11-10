@@ -1,10 +1,19 @@
 import {readFormCopy, type HubSpotFormCopy} from '../core/copy'
 import {allFields} from '../core/drawable'
 import {submitUrl} from '../core/hosts'
+import {isPinnedTo} from '../core/ids'
 import type {HubSpotSubmitResult} from '../core/model'
 import {inputName} from '../core/names'
 import {isSampleFormId} from '../core/sample'
 import {readHubSpotReply, readHutk, readSubmission, type FormDataLike} from '../core/submission'
+
+export interface SendHubSpotFormOptions {
+  /**
+   * The site's HubSpot account id. A copy that names another account is refused, so a rewritten
+   * copy can't send what visitors enter somewhere else.
+   */
+  portalId?: string
+}
 
 /**
  * Sends a form from the browser to HubSpot's public endpoint, which allows cross-origin calls,
@@ -14,9 +23,12 @@ import {readHubSpotReply, readHutk, readSubmission, type FormDataLike} from '../
 export async function sendHubSpotForm(
   copy: HubSpotFormCopy,
   data: FormDataLike,
+  options: SendHubSpotFormOptions = {},
 ): Promise<HubSpotSubmitResult> {
   const form = readFormCopy(copy)
   if (!form) return {status: 'failed'}
+  // A sample form is sent nowhere, so it has no account to check.
+  if (!isSampleFormId(form.formId) && !isPinnedTo(form, options.portalId)) return {status: 'failed'}
   const read = readSubmission(form, data, {
     hutk: readHutk(document.cookie),
     pageUri: window.location.href,

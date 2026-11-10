@@ -8,7 +8,7 @@ import {submissionContext} from './context'
 import {hubspotRoutes, type HubSpotRoutesOptions} from './routes'
 import {clearEditorCache} from './sanity'
 import {seal, unseal} from './seal'
-import {submitForm} from './submit'
+import {clearKeyAccounts, submitForm} from './submit'
 
 const PROJECT = 'abc123'
 const STUDIO = 'https://example.sanity.studio'
@@ -104,7 +104,10 @@ function setup(overrides: Partial<HubSpotRoutesOptions> = {}) {
   return {net, call}
 }
 
-beforeEach(() => clearEditorCache())
+beforeEach(() => {
+  clearEditorCache()
+  clearKeyAccounts()
+})
 
 describe('hubspotRoutes', () => {
   it('answers the Studio’s origins only', async () => {
@@ -317,5 +320,78 @@ describe('submitForm', () => {
 
   it('reads the context from headers it trusts', () => {
     expect(submissionContext(new Headers({'x-forwarded-for': 'not an ip'}))).toEqual({})
+  })
+
+  /** A network that writes down where forms were sent, the key's endpoint refusing when told to. */
+  function sends(refuseKey = false) {
+    const net = network()
+    const sent: string[] = []
+    net.submit = (url) => {
+      sent.push(url.includes('/secure/') ? 'secure' : 'public')
+      return refuseKey && url.includes('/secure/')
+        ? Response.json({}, {status: 401})
+        : Response.json({})
+    }
+    const asked = () => net.calls.filter((url) => url.endsWith('/account-info/v3/details')).length
+    return {net, sent, asked}
+  }
+
+  it('refuses a copy that names another account than the site’s', async () => {
+    const {net, sent} = sends()
+    const elsewhere = {...form, portalId: '9999'}
+    const refused = await Promise.all([
+      submitForm(elsewhere, body(), {portalId: '4242', fetch: net.fetch}),
+      submitForm(elsewhere, body(), {portalId: '4242', token: 'service-key', fetch: net.fetch}),
+      // The key's own account, 4242, when no account is pinned.
+      submitForm(elsewhere, body(), {token: 'service-key', fetch: net.fetch}),
+      // A pin that is no account id lets nothing through.
+      ...['', 'undefined', '42 42'].map((portalId) =>
+        submitForm(form, body(), {portalId, fetch: net.fetch}),
+      ),
+    ])
+    expect(refused).toEqual(Array.from({length: 6}, () => ({status: 'failed'})))
+    expect(sent).toEqual([])
+  })
+
+  it('sends a copy of the pinned account, asking HubSpot nothing about the key', async () => {
+    const {net, sent, asked} = sends(true)
+    expect((await submitForm(form, body(), {portalId: ' 4242 ', fetch: net.fetch})).status).toBe(
+      'sent',
+    )
+    // The account is known, so a key HubSpot refuses still falls back on the public endpoint.
+    expect(
+      (await submitForm(form, body(), {portalId: '4242', token: 'bad-key', fetch: net.fetch}))
+        .status,
+    ).toBe('sent')
+    expect(sent).toEqual(['public', 'secure', 'public'])
+    expect(asked()).toBe(0)
+  })
+
+  it('asks a key for its account once, and sends nothing while HubSpot can’t say', async () => {
+    const {net, sent, asked} = sends()
+    expect(await submitForm(form, body(), {token: 'bad-key', fetch: net.fetch})).toEqual({
+      status: 'failed',
+    })
+    expect(sent).toEqual([])
+    // A refusal isn't remembered: the key is asked about again, and then once is enough.
+    expect(asked()).toBe(1)
+    await submitForm(form, body(), {token: 'bad-key', fetch: net.fetch})
+    expect(asked()).toBe(2)
+    await submitForm(form, body(), {token: 'service-key', fetch: net.fetch})
+    await submitForm(form, body(), {token: 'service-key', fetch: net.fetch})
+    expect(asked()).toBe(3)
+    expect(sent).toEqual(['secure', 'secure'])
+  })
+
+  it('answers a sample form as sent whatever the account, and sends nothing', async () => {
+    const {net, sent} = sends()
+    const result = await submitForm(SAMPLE_FORMS[1] ?? {}, body(), {
+      portalId: '4242',
+      token: 'service-key',
+      fetch: net.fetch,
+    })
+    expect(result.status).toBe('sent')
+    expect(sent).toEqual([])
+    expect(net.calls).toEqual([])
   })
 })

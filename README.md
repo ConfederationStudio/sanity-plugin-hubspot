@@ -116,8 +116,10 @@ const query = `*[_type == "page" && slug.current == $slug][0]{
 ```tsx
 import {HubSpotForm} from 'sanity-plugin-hubspot/react'
 
-;<HubSpotForm form={page.form?.definition} />
+;<HubSpotForm form={page.form?.definition} portalId="1234567" />
 ```
+
+`portalId` is your HubSpot account id (the Hub ID). It is optional, and worth setting: a form copy is a document any editor can rewrite, and with it a copy that names another account draws nothing and is sent nowhere.
 
 `form` takes the copy as the query returns it, so the type Sanity TypeGen writes for the query fits as it is. In draft mode, visual editing hides marks in the query's strings; `<HubSpotForm>`, `sendHubSpotForm` and `submitForm` drop them from the copy, so they never reach HubSpot in a field's name or an answer. `layoutForm` and `fitsFields` take the plugin's own model: pass the copy through `readFormCopy` first.
 
@@ -140,7 +142,7 @@ A `hubspot.form` field holds the form's id and name, and a weak reference to its
 }
 ```
 
-The copy is a `hubspot.formDefinition` document whose fields are the plugin's form model: its rows and fields, follow-ups, consent, thank-you, whether the site can draw it and why not, and when HubSpot last changed it. It holds none of HubSpot's other settings, such as notification recipients. Its id has no dot, so a page can read it without a token. The Studio rewrites it when an editor picks or refreshes the form and when the HubSpot tab opens. A form HubSpot no longer has is marked `archived`, never deleted, so pages that use it still point somewhere and the tab can flag them.
+The copy is a `hubspot.formDefinition` document whose fields are the plugin's form model: its rows and fields, follow-ups, consent, thank-you, whether the site can draw it and why not, and when HubSpot last changed it. It holds none of HubSpot's other settings, such as notification recipients. Its id has no dot, so a page can read it without a token. Anyone who can write to the dataset can rewrite it too, so the site cleans its HTML and can be told which HubSpot account is its own: see Security, below. The Studio rewrites it when an editor picks or refreshes the form and when the HubSpot tab opens. A form HubSpot no longer has is marked `archived`, never deleted, so pages that use it still point somewhere and the tab can flag them.
 
 The pasted key, sealed, lives in a document with the id `hubspot.settings`. The dot keeps Sanity from serving it without a token.
 
@@ -164,15 +166,31 @@ export async function sendForm(data: FormData) {
   const form = formId && (await client.fetch(`*[_id == $id][0]`, {id: formCopyId(formId)}))
   if (!form) return {status: 'failed' as const}
   // Your bot check goes here: Vercel BotID, Cloudflare Turnstile.
-  return submitForm(form, data, {token: process.env.HUBSPOT_TOKEN, headers: await headers()})
+  return submitForm(form, data, {
+    portalId: process.env.HUBSPOT_PORTAL_ID,
+    token: process.env.HUBSPOT_TOKEN,
+    headers: await headers(),
+  })
 }
 ```
 
 ```tsx
-<HubSpotForm form={page.form?.definition} action={sendForm} inside={<Turnstile />} />
+<HubSpotForm
+  form={page.form?.definition}
+  portalId="1234567"
+  action={sendForm}
+  inside={<Turnstile />}
+/>
 ```
 
 `submitForm` passes on HubSpot's tracking cookie (`hubspotutk`), the visitor's address and the page, so the contact is tied to their earlier visits.
+
+`portalId` is your HubSpot account id. `submitForm` sends only a form of that account, so a rewritten copy can't send what visitors enter to someone else's. Set it wherever you send:
+
+- `submitForm(form, data, {portalId})` on the server. With a `token` and no `portalId`, the form must belong to the key's own account. HubSpot is asked once per key, and nothing is sent while it can't say: with a revoked key, or during an outage. With `portalId` set there is nothing to ask, and a key HubSpot refuses still falls back to the public endpoint.
+- `<HubSpotForm portalId>` and `sendHubSpotForm(form, data, {portalId})` in the browser.
+
+A `portalId` that isn't an account id, such as an empty string, lets no form through. Left out or `undefined`, as `process.env.HUBSPOT_PORTAL_ID` is when the variable isn't set, it pins nothing.
 
 ### Your own components
 
@@ -194,7 +212,9 @@ export async function sendForm(data: FormData) {
 
 A CSS reset such as Tailwind's preflight takes the browser's borders off inputs, selects and buttons, so the plain fields look bare until you style them: `[data-hubspot-field] input`, for one.
 
-Each field component gets `{field, fieldState, error, id}`. `field.name` is what the input posts under; `field.hasLabel` is false when HubSpot left the field unlabelled, and the label should then be for screen readers only.
+Each field component gets `{field, fieldState, error, id, RichText}`. `field.name` is what the input posts under; `field.hasLabel` is false when HubSpot left the field unlabelled, and the label should then be for screen readers only. `field.description` is HubSpot's HTML: draw it with `<RichText html={field.description} kind="description" />`, which is your own `RichText` when you pass one.
+
+HubSpot's rich text reaches `RichText` and your field components cleaned. Text, emphasis, links, headings, lists and quotes are kept; scripts, styles, classes, images and `javascript:` links are not. It is still HTML, so draw it as HTML.
 
 The field kinds are `text`, `email`, `tel`, `number`, `date`, `textarea`, `select`, `radio`, `checkboxes` and `checkbox`.
 
@@ -253,6 +273,8 @@ const formik = useFormik({initialValues: {}, onSubmit: () => {}})
 ### Forms the site can't draw
 
 A form with reCAPTCHA on, a file upload, a payment field, a follow-up on a date window, or a legitimate interest the submit API can't record is shown with HubSpot's own embed (`<HubSpotEmbed>`), current or legacy as the form is set in HubSpot, and either draws again after a page change in a single-page app. The picker and the tab say which forms these are, and why. Progressive fields don't stop a form from being drawn; the site leaves them out.
+
+`<HubSpotForm>` passes its `portalId` on to the embed. When you render `<HubSpotEmbed>` yourself, give it the same one: `<HubSpotEmbed form={definition} portalId="1234567" />` draws nothing for a copy that names another account.
 
 ### Tracking
 
@@ -321,6 +343,7 @@ Chatflows, bots and office hours stay in HubSpot. The chat comes with the tracki
 | Prop                             |                                                                                                  |
 | -------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `form`                           | The copy: `definition->` on a `hubspot.form` field, as the query returns it.                     |
+| `portalId`                       | Your HubSpot account id. A copy that names another account draws nothing and is sent nowhere.    |
 | `action`                         | A server action that calls `submitForm`. Without it, the browser sends to HubSpot.               |
 | `fieldComponents`                | Your component for each field kind.                                                              |
 | `components`                     | Your `Group`, `RichText`, `Consent`, `Submit` and `Status`.                                      |
@@ -333,11 +356,13 @@ Chatflows, bots and office hours stay in HubSpot. The chat comes with the tracki
 
 ## Security
 
-- The route answers only `studioOrigins` and members of the project, and uses an editor's token for one question to Sanity, never keeping or logging it.
+- The route answers only `studioOrigins` and members of the project. It uses an editor's token to ask Sanity who they are and, when the key was pasted in the Studio, to read the settings document. It never keeps or logs the token.
 - The Studio can only read the HubSpot key's state, never the key. A pasted key is sealed with a secret only the site holds, and bound to the project and dataset.
-- Form copies hold what the page draws and nothing else from HubSpot.
+- Form copies hold what the page draws and nothing else from HubSpot. They are public documents, and anyone who can write to the dataset can rewrite one, so the site trusts nothing in a copy:
+  - **HTML is cleaned.** HubSpot's rich text (text above a row, descriptions, consent, thank-you) is cleaned when the route reads a form, again when the site reads the copy, and once more by the plain components as they draw it. Text, emphasis, links, headings, lists and quotes are kept. Scripts, styles, classes, images, event handlers and `javascript:` links are not, and there is no switch to turn the cleaning off.
+  - **The account can be pinned.** Set `portalId` on `<HubSpotForm>`, `<HubSpotEmbed>`, `sendHubSpotForm` and `submitForm`, and a copy that names another HubSpot account draws nothing and is sent nowhere. `submitForm` with a `token` and no `portalId` checks the form against the key's own account.
+  - **Redirects are web addresses.** After a send, a visitor is only ever sent on to an `http` or `https` address.
 - `submitForm` should be given the form as your server read it from Sanity, never one posted by the browser.
-- HubSpot's rich text (descriptions, consent, thank-you) is drawn as HubSpot's embed draws it. Pass your own `RichText` to clean it.
 
 ## Coming from `@sanity/form-toolkit`
 

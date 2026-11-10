@@ -3,6 +3,8 @@
 import {useState, type SubmitEvent} from 'react'
 import {sendHubSpotForm, type HubSpotFormDefinition} from 'sanity-plugin-hubspot/react'
 
+import {portalId} from '../../lib/hubspot'
+
 /**
  * A site's own one-field form, sent to the HubSpot form an editor picked for it. The field's
  * `options.draws: ['email']` has the picker say which forms take an email alone.
@@ -15,7 +17,8 @@ export function Newsletter({form}: {form: HubSpotFormDefinition}) {
     setState('sending')
     const data = new FormData(event.currentTarget)
     data.set('hubspot:form', form.formId)
-    const result = await sendHubSpotForm(form, data)
+    // Only to the site's own HubSpot account, whatever the copy says.
+    const result = await sendHubSpotForm(form, data, {portalId})
     setState(result.status)
   }
 

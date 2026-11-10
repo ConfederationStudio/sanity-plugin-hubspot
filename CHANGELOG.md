@@ -2,6 +2,16 @@
 
 Until 1.0, a minor version may change the API. Each change that needs work on a site or Studio says what to do.
 
+## Unreleased
+
+Two security fixes. A form copy is a public document that anyone who can write to the dataset can rewrite, and the site trusted what it read from one.
+
+- **HubSpot's HTML is cleaned before it is drawn.** A rewritten copy could put a script on the page through a row's text, a field's description, the consent or the thank-you. That HTML is now cleaned when the route reads a form, when the site reads a copy and as the plain components draw it, and a thank-you answered by your own server action is cleaned too. Text, emphasis, links, headings, lists and quotes are kept. Scripts, inline styles, classes, images, event handlers and `javascript:` links are dropped, and a `div` is drawn as a paragraph. If you relied on HubSpot's inline styles or images in rich text, style the form in your own CSS instead.
+- **A copy can't send what visitors enter to another HubSpot account.** `submitForm`, `sendHubSpotForm`, `<HubSpotForm>` and `<HubSpotEmbed>` take a `portalId`, your HubSpot account id: a copy that names another account draws nothing and is sent nowhere. Set it wherever you draw or send a form.
+- `submitForm` with a `token` and no `portalId` now checks the form against the key's own account, asked of HubSpot once per key. Nothing is sent while HubSpot can't say whose key it is, so a revoked key no longer falls back to the public endpoint by itself: set `portalId`, and it does again.
+- A field's description is drawn through the form's `RichText` component, with `kind="description"`. Field components get `RichText` as a prop; a description now sits in a `[data-hubspot-text="description"]` element inside `[data-hubspot-description]`.
+- A copy's redirect after a send is followed only to an `http` or `https` address.
+
 ## 0.1.0 (2026-11-06)
 
 The first release.

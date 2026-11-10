@@ -8,6 +8,7 @@ import type {HubSpotFormDefinition} from '../core/model'
 import {parseForm} from '../core/parse'
 import {SAMPLE_FORMS} from '../core/sample'
 import {hubspotWindow} from './globals'
+import {HubSpotEmbed} from './HubSpotEmbed'
 import {HubSpotForm} from './HubSpotForm'
 import {sendHubSpotForm} from './send'
 import {createTracker} from './tracker'
@@ -166,6 +167,137 @@ describe('HubSpotForm', () => {
     expect(container.querySelector('.hs-form-frame')?.getAttribute('data-form-id')).toBe(
       live.formId,
     )
+  })
+})
+
+/** A copy as someone with an editor's token could rewrite it: scripts wherever HTML is drawn. */
+function rewritten(): HubSpotFormDefinition {
+  const nasty = '<img src=x onerror="alert(1)"><script>window.taken = true</script>'
+  const copy = structuredClone(live)
+  const [group] = copy.groups
+  const field = group?.fields[0]
+  if (!group || !field) throw new Error('The newsletter form has no field')
+  group.text = `<p>Join us</p>${nasty}`
+  field.description = `<a href="javascript:alert(2)">Why we ask</a>${nasty}`
+  copy.consent = {
+    type: 'explicit',
+    checkboxes: [
+      {_key: 's1', subscriptionTypeId: 1, label: `<p>News</p>${nasty}`, required: false},
+    ],
+    processText: `<p style="position:fixed">We store it</p>${nasty}`,
+  }
+  copy.afterSubmit = {type: 'message', html: `<p>Welcome</p>${nasty}`}
+  return copy
+}
+
+const DANGEROUS = /onerror|<script|<img|javascript:|position:\s*fixed/i
+
+describe('a rewritten copy', () => {
+  it('is drawn without its scripts, styles and script links', () => {
+    const {container} = render(<HubSpotForm form={rewritten()} />)
+    expect(container.innerHTML).not.toMatch(DANGEROUS)
+    expect(screen.getByText('Join us')).toBeTruthy()
+    expect(screen.getByText('We store it')).toBeTruthy()
+    expect(screen.getByText('Why we ask').getAttribute('href')).toBeNull()
+    // The description still describes its field.
+    const described = screen.getByLabelText(/Email/).getAttribute('aria-describedby') ?? ''
+    expect(document.getElementById(described)?.textContent).toBe('Why we ask')
+  })
+
+  it('hands the site’s own RichText clean HTML, a field’s description included', () => {
+    const seen: Record<string, string> = {}
+    render(
+      <HubSpotForm
+        form={rewritten()}
+        components={{
+          RichText: ({html, kind}) => {
+            seen[kind] = html
+            return <div data-kind={kind} />
+          },
+        }}
+      />,
+    )
+    expect(seen).toEqual({
+      text: '<p>Join us</p>',
+      description: '<a>Why we ask</a>',
+      consent: '<p>We store it</p>',
+    })
+  })
+
+  it('draws a clean thank-you, the copy’s or one a server action answers with', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({})),
+    )
+    const send = async (form: React.ReactElement) => {
+      const {container} = render(form)
+      fireEvent.change(screen.getByLabelText(/Email/), {target: {value: 'ada@example.com'}})
+      fireEvent.click(screen.getByRole('button', {name: 'Submit'}))
+      await waitFor(() =>
+        expect(container.querySelector('[data-hubspot-status="sent"]')).toBeTruthy(),
+      )
+      expect(container.innerHTML).not.toMatch(DANGEROUS)
+      cleanup()
+    }
+    await send(<HubSpotForm form={rewritten()} />)
+    await send(
+      <HubSpotForm
+        form={live}
+        action={async () => ({
+          status: 'sent',
+          message: '<p>Thanks</p><img src=x onerror="alert(1)">',
+        })}
+      />,
+    )
+  })
+})
+
+describe('a copy that names another HubSpot account', () => {
+  const elsewhere = {...live, portalId: '9999'}
+
+  it('is drawn only when it names the account the site pins', () => {
+    expect(render(<HubSpotForm form={elsewhere} portalId="4242" />).container.innerHTML).toBe('')
+    // A pin that is no account id draws nothing either.
+    expect(render(<HubSpotForm form={live} portalId="" />).container.innerHTML).toBe('')
+    render(<HubSpotForm form={live} portalId="4242" />)
+    expect(screen.getByLabelText(/Email/)).toBeTruthy()
+  })
+
+  it('is never embedded', () => {
+    const embedded = (form: HubSpotFormDefinition, portalId?: string) =>
+      render(
+        <HubSpotEmbed form={{...form, embed: 'v4'}} portalId={portalId} />,
+      ).container.querySelector('.hs-form-frame')
+    expect(embedded(elsewhere, '4242')).toBeNull()
+    expect(embedded(live, '4242')?.getAttribute('data-portal-id')).toBe('4242')
+    // Nor through a form the site can't draw.
+    expect(
+      render(<HubSpotForm form={{...elsewhere, drawable: false}} portalId="4242" />).container
+        .innerHTML,
+    ).toBe('')
+    expect(document.querySelector('script[src*="/9999."]')).toBeNull()
+    // With no account pinned, a copy's account is taken as it comes.
+    expect(embedded(elsewhere)?.getAttribute('data-portal-id')).toBe('9999')
+  })
+
+  it('is never sent from the browser', async () => {
+    const fetch = vi.fn(async () => Response.json({}))
+    vi.stubGlobal('fetch', fetch)
+    const data = new FormData()
+    data.set('email', 'ada@example.com')
+    await expect(sendHubSpotForm(elsewhere, data, {portalId: '4242'})).resolves.toEqual({
+      status: 'failed',
+    })
+    expect(fetch).not.toHaveBeenCalled()
+    await expect(sendHubSpotForm(live, data, {portalId: '4242'})).resolves.toMatchObject({
+      status: 'sent',
+    })
+    expect(fetch).toHaveBeenCalledOnce()
+  })
+
+  it('leaves a sample form alone, which is sent nowhere', () => {
+    render(<HubSpotForm form={contact} portalId="4242" />)
+    expect(screen.getByRole('button', {name: 'Send'})).toBeTruthy()
   })
 })
 

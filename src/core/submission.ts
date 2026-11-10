@@ -1,5 +1,6 @@
 import {answerOf} from './conditions'
 import {allFields} from './drawable'
+import {cleanHtml} from './html'
 import {isFormId} from './ids'
 import {activeFields, type HubSpotAnswers} from './layout'
 import type {
@@ -218,7 +219,8 @@ export function readHutk(cookieHeader: string | null | undefined): string | unde
 
 /**
  * HubSpot's answer to a send, in what the visitor can do about it. Field errors come back keyed
- * by input name. HubSpot's own thank-you text and redirect win over the copy's, being newer.
+ * by input name. HubSpot's own thank-you text and redirect win over the copy's, being newer. The
+ * thank-you's HTML is cleaned, whichever it is.
  */
 export function readHubSpotReply(
   form: HubSpotFormDefinition,
@@ -227,14 +229,16 @@ export function readHubSpotReply(
 ): HubSpotSubmitResult {
   if (status >= 200 && status < 300) {
     const message =
-      isObject(body) && typeof body.inlineMessage === 'string' ? body.inlineMessage : undefined
+      isObject(body) && typeof body.inlineMessage === 'string'
+        ? cleanHtml(body.inlineMessage)
+        : undefined
     const redirect =
       isObject(body) && typeof body.redirectUri === 'string' ? body.redirectUri : undefined
     const after = form.afterSubmit
     if (redirect && isHttpUrl(redirect)) return {status: 'sent', redirect}
     if (message) return {status: 'sent', message}
     if (after.type === 'redirect') return {status: 'sent', redirect: after.url}
-    if (after.type === 'message') return {status: 'sent', message: after.html}
+    if (after.type === 'message') return {status: 'sent', message: cleanHtml(after.html)}
     return {status: 'sent'}
   }
   if (status === 400 && isObject(body) && Array.isArray(body.errors)) {

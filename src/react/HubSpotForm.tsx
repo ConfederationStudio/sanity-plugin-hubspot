@@ -12,9 +12,12 @@ import {
 
 import {readFormCopy, type HubSpotFormCopy} from '../core/copy'
 import {allFields} from '../core/drawable'
+import {cleanHtml} from '../core/html'
+import {isPinnedTo} from '../core/ids'
 import {layoutForm, type HubSpotAnswers, type HubSpotFieldView} from '../core/layout'
 import type {HubSpotFieldError, HubSpotFieldType, HubSpotSubmitResult} from '../core/model'
 import {FORM_INPUT, HONEYPOT_INPUT, inputName, PAGE_NAME_INPUT, PAGE_URI_INPUT} from '../core/names'
+import {isSampleFormId} from '../core/sample'
 import {isHttpUrl} from '../core/text'
 import {defaultFieldComponents, type HubSpotFieldProps, type HubSpotFieldState} from './fields'
 import {HubSpotEmbed} from './HubSpotEmbed'
@@ -62,6 +65,11 @@ export interface HubSpotFormProps extends Omit<
    */
   form: HubSpotFormCopy | null | undefined
   /**
+   * The site's HubSpot account id. A form copy is a document any editor of the project can
+   * rewrite; with this set, a copy that names another account draws nothing and sends nowhere.
+   */
+  portalId?: string
+  /**
    * Sends from the site's server: a server action that calls `submitForm`. Without one, the
    * browser sends to HubSpot's public endpoint.
    */
@@ -96,6 +104,7 @@ const strings = (values: FormDataEntryValue[]): string[] =>
 export function HubSpotForm(props: HubSpotFormProps) {
   const {
     form: copy,
+    portalId,
     action,
     fieldComponents,
     components,
@@ -108,8 +117,12 @@ export function HubSpotForm(props: HubSpotFormProps) {
     onSent,
     ...formProps
   } = props
-  // Read once per copy: this also drops the hidden characters draft mode adds to its text.
-  const form = useMemo(() => readFormCopy(copy), [copy])
+  // Read once per copy: this also drops the hidden characters draft mode adds to its text, and
+  // cleans its HTML. A copy that names another account than the site's is no form of this site.
+  const form = useMemo(() => {
+    const read = readFormCopy(copy)
+    return read && (isSampleFormId(read.formId) || isPinnedTo(read, portalId)) ? read : null
+  }, [copy, portalId])
   const baseId = useId()
   const [typed, setTyped] = useState<HubSpotAnswers>({})
   const [errors, setErrors] = useState<Record<string, HubSpotFieldError>>({})
@@ -183,9 +196,14 @@ export function HubSpotForm(props: HubSpotFormProps) {
         fillFromAddress(form, data, new URLSearchParams(window.location.search))
 
       setPending(true)
-      const outcome: HubSpotSubmitResult = await (action
+      const answer: HubSpotSubmitResult = await (action
         ? action(data).catch((): HubSpotSubmitResult => ({status: 'failed'}))
-        : sendHubSpotForm(form, data))
+        : sendHubSpotForm(form, data, {portalId}))
+      // Whatever the site's action answers, the thank-you is cleaned before it is drawn.
+      const outcome: HubSpotSubmitResult =
+        answer.status === 'sent' && answer.message !== undefined
+          ? {...answer, message: cleanHtml(answer.message)}
+          : answer
       setPending(false)
       setResult(outcome)
       setErrors(outcome.status === 'invalid' ? outcome.errors : {})
@@ -200,11 +218,11 @@ export function HubSpotForm(props: HubSpotFormProps) {
           window.location.assign(outcome.redirect)
       }
     },
-    [action, fillHiddenFromAddress, form, getFieldState, onSent, pending, shown],
+    [action, fillHiddenFromAddress, form, getFieldState, onSent, pending, portalId, shown],
   )
 
   if (!form) return null
-  if (!form.drawable) return <>{fallback ?? <HubSpotEmbed form={form} />}</>
+  if (!form.drawable) return <>{fallback ?? <HubSpotEmbed form={form} portalId={portalId} />}</>
   if (result?.status === 'sent' && !result.redirect)
     return <Status result={result} RichText={RichText} />
 
@@ -223,6 +241,7 @@ export function HubSpotForm(props: HubSpotFormProps) {
         fieldState={getFieldState?.(field.name) ?? {}}
         error={errorFor(field.name, field.type === 'checkbox')}
         id={`${baseId}-${field.key}`}
+        RichText={RichText}
       />
     )
   }

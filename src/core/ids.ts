@@ -22,6 +22,16 @@ export const isPortalId = (value: unknown): value is string =>
   typeof value === 'string' && /^\d{1,12}$/.test(value)
 
 /**
+ * Whether a form belongs to the HubSpot account a site pins. A form copy is a document any editor
+ * of the project can rewrite, so a site that knows its account says so, and a copy that names
+ * another is refused. Without a pin every account passes; a pin that isn't an account id, such
+ * as an empty string, passes none.
+ */
+export const isPinnedTo = (form: {portalId?: string}, pin: string | undefined): boolean =>
+  pin === undefined ||
+  (typeof pin === 'string' && isPortalId(form.portalId) && form.portalId === pin.trim())
+
+/**
  * A form copy's document id. No dot, unlike the settings document: a page's query reads
  * copies without a token, so they must be public wherever the dataset is.
  */

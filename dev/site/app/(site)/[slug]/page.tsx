@@ -8,6 +8,7 @@ import {notFound} from 'next/navigation'
 import {HubSpotChatEmbed, HubSpotChatLink, HubSpotForm} from 'sanity-plugin-hubspot/react'
 import {resolveContentType} from 'sanity-plugin-hubspot/server'
 
+import {portalId} from '../../../lib/hubspot'
 import {client, PAGE_QUERY, type FormValue, type Page} from '../../../lib/sanity'
 import {sendForm} from '../actions'
 import {HubSpot} from '../HubSpot'
@@ -20,7 +21,9 @@ const CONTENT_TYPES = {page: 'standard-page', post: 'blog-post'}
 
 const components: PortableTextComponents = {
   types: {
-    'hubspot.form': ({value}: {value: FormValue}) => <HubSpotForm form={value.definition} />,
+    'hubspot.form': ({value}: {value: FormValue}) => (
+      <HubSpotForm form={value.definition} portalId={portalId} />
+    ),
     'hubspot.chat': ({value}: {value: {title?: string}}) => (
       <aside>
         {value.title && <h3>{value.title}</h3>}
@@ -65,7 +68,7 @@ export default async function PageRoute({params}: {params: Promise<{slug: string
         <section>
           <h2>Form ({page.form.name}), sent from the server</h2>
           {page.form.definition ? (
-            <HubSpotForm form={page.form.definition} action={sendForm} />
+            <HubSpotForm form={page.form.definition} portalId={portalId} action={sendForm} />
           ) : (
             <p role="alert">The form has no copy yet. Open the Studio’s HubSpot tab.</p>
           )}

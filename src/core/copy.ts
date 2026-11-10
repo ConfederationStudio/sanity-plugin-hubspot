@@ -1,5 +1,6 @@
 import {undrawableReasons} from './drawable'
 import {isRegion} from './hosts'
+import {cleanHtml} from './html'
 import {isFormId, isPortalId} from './ids'
 import {
   MODEL_VERSION,
@@ -15,6 +16,7 @@ import {
   type HubSpotSubscriptionCheckbox,
   type HubSpotUndrawableReason,
 } from './model'
+import {isHttpUrl} from './text'
 
 /**
  * A type made as loose as Sanity TypeGen makes a document's: every field optional or null, and
@@ -54,6 +56,14 @@ const list = (value: unknown): readonly unknown[] => (Array.isArray(value) ? val
 const text = (value: unknown): string | undefined =>
   typeof value === 'string' ? value.replace(STEGA, '') : undefined
 const texts = (value: unknown): string[] => list(value).flatMap((item) => text(item) ?? [])
+/**
+ * HubSpot's HTML, cleaned on the way in: a copy is a public document any editor of the project
+ * can rewrite, so the site never draws its HTML as it stands.
+ */
+const html = (value: unknown): string | undefined => {
+  const read = text(value)
+  return read === undefined ? undefined : cleanHtml(read)
+}
 const numbers = (value: unknown): number[] =>
   list(value).filter((item): item is number => typeof item === 'number' && Number.isFinite(item))
 
@@ -61,14 +71,19 @@ const numbers = (value: unknown): number[] =>
 function optionalTexts<Name extends string>(
   raw: Raw,
   names: readonly Name[],
+  read: (value: unknown) => string | undefined = text,
 ): Partial<Record<Name, string>> {
   const out: Partial<Record<Name, string>> = {}
   for (const name of names) {
-    const value = text(raw[name])
+    const value = read(raw[name])
     if (value !== undefined) out[name] = value
   }
   return out
 }
+
+/** The named fields that hold HubSpot's HTML, cleaned. One with nothing left to draw is left out. */
+const optionalHtml = <Name extends string>(raw: Raw, names: readonly Name[]) =>
+  optionalTexts(raw, names, (value) => html(value)?.trim() || undefined)
 
 const FIELD_TYPES = {
   text: true,
@@ -109,7 +124,7 @@ function readOption(value: unknown, index: number): HubSpotOption {
     _key: text(raw._key) ?? `o${index}`,
     value: option,
     label: text(raw.label) ?? option,
-    ...optionalTexts(raw, ['description']),
+    ...optionalHtml(raw, ['description']),
   }
 }
 
@@ -143,7 +158,8 @@ function readField(value: unknown, fallbackKey: string): HubSpotField {
     hasLabel: raw.hasLabel === true,
     required: raw.required === true,
     hidden: raw.hidden === true,
-    ...optionalTexts(raw, ['placeholder', 'description']),
+    ...optionalTexts(raw, ['placeholder']),
+    ...optionalHtml(raw, ['description']),
     defaultValues: texts(raw.defaultValues),
     options: list(raw.options).map(readOption),
     followUps: list(raw.followUps).map(readFollowUp),
@@ -154,7 +170,7 @@ function readGroup(value: unknown, index: number): HubSpotGroup {
   const raw = record(value)
   return {
     _key: text(raw._key) ?? `g${index}`,
-    ...optionalTexts(raw, ['text']),
+    ...optionalHtml(raw, ['text']),
     fields: list(raw.fields).map((field, at) => readField(field, `f${at}`)),
   }
 }
@@ -166,7 +182,7 @@ function readCheckbox(value: unknown): HubSpotSubscriptionCheckbox {
   return {
     _key: text(raw._key) ?? `s${id}`,
     subscriptionTypeId: id,
-    label: text(raw.label) ?? '',
+    label: html(raw.label) ?? '',
     required: raw.required === true,
   }
 }
@@ -181,14 +197,14 @@ function readConsent(value: unknown): HubSpotConsent {
       type,
       basis: basis === 'lead' || basis === 'client' ? basis : 'other',
       subscriptionTypeIds: numbers(raw.subscriptionTypeIds),
-      ...optionalTexts(raw, ['privacyText']),
+      ...optionalHtml(raw, ['privacyText']),
     }
   }
   if (type === 'explicit')
     return {
       type,
       checkboxes: list(raw.checkboxes).map(readCheckbox),
-      ...optionalTexts(raw, [
+      ...optionalHtml(raw, [
         'communicationText',
         'processText',
         'processLabel',
@@ -200,7 +216,7 @@ function readConsent(value: unknown): HubSpotConsent {
     return {
       type,
       checkboxes: list(raw.checkboxes).map(readCheckbox),
-      ...optionalTexts(raw, ['communicationText', 'processText', 'privacyText']),
+      ...optionalHtml(raw, ['communicationText', 'processText', 'privacyText']),
     }
   throw new Unreadable()
 }
@@ -208,18 +224,20 @@ function readConsent(value: unknown): HubSpotConsent {
 function readAfterSubmit(value: unknown): HubSpotAfterSubmit {
   const raw = record(value)
   const type = text(raw.type)
-  const html = text(raw.html)
+  const message = html(raw.html)
   const url = text(raw.url)
-  if (type === 'message' && html !== undefined) return {type, html}
-  if (type === 'redirect' && url !== undefined) return {type, url}
+  if (type === 'message' && message !== undefined) return {type, html: message}
+  // Only a web address: a copy mustn't send the visitor to a `javascript:` one.
+  if (type === 'redirect' && url !== undefined && isHttpUrl(url)) return {type, url}
   return {type: 'none'}
 }
 
 /**
  * A form's copy as the plugin's model, from whatever a page's query read: typed by Sanity
  * TypeGen or not at all. It drops the hidden characters visual editing adds to strings in draft
- * mode, which would otherwise reach HubSpot in field names and answers. A copy missing what the
- * site needs to draw it comes back undrawable, for HubSpot's embed; one with no form id, null.
+ * mode, which would otherwise reach HubSpot in field names and answers, and cleans HubSpot's
+ * HTML, since any editor of the project can rewrite a copy. A copy missing what the site needs
+ * to draw it comes back undrawable, for HubSpot's embed; one with no form id, null.
  *
  * `<HubSpotForm>`, `<HubSpotEmbed>`, `sendHubSpotForm` and `submitForm` call it themselves. Call
  * it before `layoutForm` or `fitsFields`, which take the model.

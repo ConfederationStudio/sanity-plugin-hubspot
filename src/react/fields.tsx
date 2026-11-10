@@ -2,6 +2,7 @@ import type {ChangeEvent, ComponentType, CSSProperties} from 'react'
 
 import type {HubSpotFieldView} from '../core/layout'
 import type {HubSpotFieldType} from '../core/model'
+import {DefaultRichText, type HubSpotRichTextProps} from './parts'
 
 /**
  * A field's state, when the site's form library holds it (`getFieldState`). Leave it out and the
@@ -20,6 +21,8 @@ export interface HubSpotFieldProps {
   error?: string
   /** The id for the field's input, which its label points at. */
   id: string
+  /** The form's rich text component, for the field's description (`field.description`). */
+  RichText?: ComponentType<HubSpotRichTextProps>
 }
 
 /** Hidden from sight, not from screen readers: the label of a field HubSpot left unlabelled. */
@@ -89,15 +92,18 @@ function Legend({field}: {field: HubSpotFieldView}) {
   )
 }
 
-function After({field, id, error}: {field: HubSpotFieldView; id: string; error?: string}) {
+function After({
+  field,
+  id,
+  error,
+  RichText = DefaultRichText,
+}: Pick<HubSpotFieldProps, 'field' | 'id' | 'error' | 'RichText'>) {
   return (
     <>
       {field.description && (
-        <div
-          id={`${id}-description`}
-          data-hubspot-description=""
-          dangerouslySetInnerHTML={{__html: field.description}}
-        />
+        <div id={`${id}-description`} data-hubspot-description="">
+          <RichText html={field.description} kind="description" />
+        </div>
       )}
       {error && (
         <p id={`${id}-error`} data-hubspot-error="">
@@ -135,7 +141,7 @@ function common(
   }
 }
 
-export function InputField({field, fieldState, error, id}: HubSpotFieldProps) {
+export function InputField({field, fieldState, error, id, RichText}: HubSpotFieldProps) {
   return (
     <div data-hubspot-field={field.type}>
       <Label field={field} id={id} />
@@ -147,12 +153,12 @@ export function InputField({field, fieldState, error, id}: HubSpotFieldProps) {
         autoComplete={AUTOCOMPLETE[field.property]}
         {...(field.type === 'number' && {inputMode: 'decimal' as const, step: 'any'})}
       />
-      <After field={field} id={id} error={error} />
+      <After field={field} id={id} error={error} RichText={RichText} />
     </div>
   )
 }
 
-export function TextareaField({field, fieldState, error, id}: HubSpotFieldProps) {
+export function TextareaField({field, fieldState, error, id, RichText}: HubSpotFieldProps) {
   return (
     <div data-hubspot-field={field.type}>
       <Label field={field} id={id} />
@@ -162,12 +168,12 @@ export function TextareaField({field, fieldState, error, id}: HubSpotFieldProps)
         placeholder={field.placeholder}
         rows={4}
       />
-      <After field={field} id={id} error={error} />
+      <After field={field} id={id} error={error} RichText={RichText} />
     </div>
   )
 }
 
-export function SelectField({field, fieldState, error, id}: HubSpotFieldProps) {
+export function SelectField({field, fieldState, error, id, RichText}: HubSpotFieldProps) {
   return (
     <div data-hubspot-field={field.type}>
       <Label field={field} id={id} />
@@ -179,7 +185,7 @@ export function SelectField({field, fieldState, error, id}: HubSpotFieldProps) {
           </option>
         ))}
       </select>
-      <After field={field} id={id} error={error} />
+      <After field={field} id={id} error={error} RichText={RichText} />
     </div>
   )
 }
@@ -190,6 +196,7 @@ function OptionsField({
   fieldState,
   error,
   id,
+  RichText,
   multiple,
 }: HubSpotFieldProps & {multiple: boolean}) {
   const chosen = fieldState.value === undefined ? undefined : many(fieldState.value)
@@ -225,7 +232,7 @@ function OptionsField({
           {option.label}
         </label>
       ))}
-      <After field={field} id={id} error={error} />
+      <After field={field} id={id} error={error} RichText={RichText} />
     </fieldset>
   )
 }
@@ -234,7 +241,7 @@ export const RadioField = (props: HubSpotFieldProps) => <OptionsField {...props}
 export const CheckboxesField = (props: HubSpotFieldProps) => <OptionsField {...props} multiple />
 
 /** A single box, which sends `true` when ticked and nothing when not. */
-export function CheckboxField({field, fieldState, error, id}: HubSpotFieldProps) {
+export function CheckboxField({field, fieldState, error, id, RichText}: HubSpotFieldProps) {
   const ticked = fieldState.value === undefined ? undefined : first(fieldState.value) === 'true'
   return (
     <div data-hubspot-field={field.type}>
@@ -251,7 +258,7 @@ export function CheckboxField({field, fieldState, error, id}: HubSpotFieldProps)
         })}
       />{' '}
       <Label field={field} id={id} />
-      <After field={field} id={id} error={error} />
+      <After field={field} id={id} error={error} RichText={RichText} />
     </div>
   )
 }

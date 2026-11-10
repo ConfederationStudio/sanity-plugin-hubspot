@@ -2,10 +2,16 @@ import {useEffect, useId, useMemo, useRef} from 'react'
 
 import {readFormCopy, type HubSpotFormCopy} from '../core/copy'
 import {DEFAULT_REGION, embedScriptUrl} from '../core/hosts'
+import {isPinnedTo} from '../core/ids'
 import {hubspotWindow, loadScript} from './globals'
 
 export interface HubSpotEmbedProps {
   form: Pick<HubSpotFormCopy, 'formId' | 'portalId' | 'region' | 'embed'>
+  /**
+   * The site's HubSpot account id. A copy that names another account draws nothing, so a
+   * rewritten copy can't put another account's form on the page.
+   */
+  portalId?: string
   className?: string
 }
 
@@ -14,12 +20,12 @@ export interface HubSpotEmbedProps {
  * payment. It follows the form's embed: the current one draws in a frame, the legacy one into
  * the page.
  */
-export function HubSpotEmbed({form, className}: HubSpotEmbedProps) {
+export function HubSpotEmbed({form, portalId: pin, className}: HubSpotEmbedProps) {
   const target = useRef<HTMLDivElement>(null)
   const id = `hubspot-embed-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const read = useMemo(() => readFormCopy(form), [form])
   const formId = read?.formId
-  const portalId = read?.portalId
+  const portalId = read && isPinnedTo(read, pin) ? read.portalId : undefined
   const embed = read?.embed
   const region = read?.region ?? DEFAULT_REGION
 

@@ -1,4 +1,5 @@
 import {allFields, undrawableReasons} from './drawable'
+import {cleanHtml} from './html'
 import type {
   RawCommunicationsCheckbox,
   RawCondition,
@@ -46,6 +47,10 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const text = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() !== '' ? value : undefined
 
+/** HubSpot's HTML, cleaned, or nothing when cleaning leaves nothing to draw. */
+const html = (value: unknown): string | undefined =>
+  typeof value === 'string' ? cleanHtml(value).trim() || undefined : undefined
+
 /** Enough of HubSpot's answer to work from; anything less is left out, not drawn wrong. */
 export function isRawForm(value: unknown): value is RawForm {
   return (
@@ -66,7 +71,8 @@ function options(raw: RawOption[] | undefined) {
         value: option.value,
         label: plainText(option.label) || option.value,
       }
-      if (text(option.description)) out.description = option.description
+      const description = html(option.description)
+      if (description) out.description = description
       return out
     })
 }
@@ -83,6 +89,7 @@ function condition(raw: RawCondition): HubSpotCondition {
 
 function field(raw: RawField): HubSpotField {
   const label = plainText(raw.label)
+  const description = html(raw.description)
   const defaults = Array.isArray(raw.defaultValues)
     ? raw.defaultValues.map(String)
     : text(raw.defaultValue)
@@ -99,7 +106,7 @@ function field(raw: RawField): HubSpotField {
     required: raw.required === true,
     hidden: raw.hidden === true,
     ...(text(raw.placeholder) && {placeholder: raw.placeholder}),
-    ...(text(raw.description) && {description: raw.description}),
+    ...(description && {description}),
     defaultValues: defaults,
     options: options(raw.options),
     followUps: (raw.dependentFields ?? [])
@@ -126,9 +133,22 @@ function checkboxes(raw: unknown): HubSpotSubscriptionCheckbox[] {
   return raw.filter(isCheckbox).map((box) => ({
     _key: `s${box.subscriptionTypeId}`,
     subscriptionTypeId: box.subscriptionTypeId,
-    label: typeof box.label === 'string' ? box.label : '',
+    label: html(box.label) ?? '',
     required: box.required === true,
   }))
+}
+
+/** A consent's texts under the model's names, cleaned; those HubSpot left empty are left out. */
+function consentTexts<Name extends string>(
+  texts: Record<Name, unknown>,
+): Partial<Record<Name, string>> {
+  const out: Partial<Record<Name, string>> = {}
+  for (const name in texts) {
+    if (!Object.hasOwn(texts, name)) continue
+    const cleaned = html(texts[name])
+    if (cleaned) out[name] = cleaned
+  }
+  return out
 }
 
 function consent(raw: RawLegalConsent | undefined): HubSpotConsent {
@@ -140,31 +160,29 @@ function consent(raw: RawLegalConsent | undefined): HubSpotConsent {
         basis:
           raw.lawfulBasis === 'client' || raw.lawfulBasis === 'lead' ? raw.lawfulBasis : 'other',
         subscriptionTypeIds: (raw.subscriptionTypeIds ?? []).filter(Number.isFinite),
-        ...(text(raw.privacyText) && {privacyText: raw.privacyText}),
+        ...consentTexts({privacyText: raw.privacyText}),
       }
     case 'explicit_consent_to_process':
       return {
         type: 'explicit',
         checkboxes: checkboxes(raw.communicationsCheckboxes),
-        ...(text(raw.communicationConsentText) && {
+        ...consentTexts({
           communicationText: raw.communicationConsentText,
-        }),
-        ...(text(raw.consentToProcessText) && {processText: raw.consentToProcessText}),
-        ...(text(raw.consentToProcessCheckboxLabel) && {
+          processText: raw.consentToProcessText,
           processLabel: raw.consentToProcessCheckboxLabel,
+          footerText: raw.consentToProcessFooterText,
+          privacyText: raw.privacyText,
         }),
-        ...(text(raw.consentToProcessFooterText) && {footerText: raw.consentToProcessFooterText}),
-        ...(text(raw.privacyText) && {privacyText: raw.privacyText}),
       }
     case 'implicit_consent_to_process':
       return {
         type: 'implicit',
         checkboxes: checkboxes(raw.communicationsCheckboxes),
-        ...(text(raw.communicationConsentText) && {
+        ...consentTexts({
           communicationText: raw.communicationConsentText,
+          processText: raw.consentToProcessText,
+          privacyText: raw.privacyText,
         }),
-        ...(text(raw.consentToProcessText) && {processText: raw.consentToProcessText}),
-        ...(text(raw.privacyText) && {privacyText: raw.privacyText}),
       }
     default:
       return {type: 'none'}
@@ -177,7 +195,8 @@ function afterSubmit(raw: RawForm['configuration']): HubSpotAfterSubmit {
   if (!value) return {type: 'none'}
   if (action?.type === 'redirect_url')
     return isHttpUrl(value) ? {type: 'redirect', url: value} : {type: 'none'}
-  return {type: 'message', html: value}
+  const message = html(value)
+  return message ? {type: 'message', html: message} : {type: 'none'}
 }
 
 /**
@@ -199,7 +218,7 @@ export function parseForm(
       continue
     }
     const fields = Array.isArray(group.fields) ? group.fields.filter(isField).map(field) : []
-    const richText = group.richTextType === 'image' ? undefined : text(group.richText)
+    const richText = group.richTextType === 'image' ? undefined : html(group.richText)
     if (fields.length === 0 && !richText) continue
     groups.push({_key: `g${index}`, ...(richText && {text: richText}), fields})
   }

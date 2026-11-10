@@ -72,7 +72,7 @@ export interface HubSpotFollowUp {
 /** One of HubSpot's field groups: an optional run of rich text, then up to three fields in a row. */
 export interface HubSpotGroup {
   _key: string
-  /** HubSpot's HTML, as its editor wrote it. */
+  /** HubSpot's HTML, cleaned of everything but text, emphasis, links, headings, lists and quotes. */
   text?: string
   fields: HubSpotField[]
 }
@@ -80,7 +80,7 @@ export interface HubSpotGroup {
 export interface HubSpotSubscriptionCheckbox {
   _key: string
   subscriptionTypeId: number
-  /** HubSpot's HTML. */
+  /** HubSpot's HTML, cleaned. */
   label: string
   required: boolean
 }

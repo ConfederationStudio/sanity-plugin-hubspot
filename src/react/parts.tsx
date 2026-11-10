@@ -1,5 +1,6 @@
-import type {ComponentType, ReactNode} from 'react'
+import {useMemo, type ComponentType, type ReactNode} from 'react'
 
+import {cleanHtml} from '../core/html'
 import type {HubSpotConsent, HubSpotSubmitResult} from '../core/model'
 import {CONSENT_INPUT, subscriptionInput} from '../core/names'
 
@@ -10,10 +11,13 @@ export interface HubSpotGroupProps {
 }
 
 export interface HubSpotRichTextProps {
-  /** HubSpot's HTML, as the form's editor wrote it in HubSpot. */
+  /**
+   * HubSpot's HTML, cleaned: text, emphasis, links, headings, lists and quotes, with no styles,
+   * classes, images or scripts.
+   */
   html: string
-  /** Where it sits: above a row, in the consent, or the thank-you after sending. */
-  kind: 'text' | 'consent' | 'message'
+  /** Where it sits: above a row, under a field, in the consent, or the thank-you after sending. */
+  kind: 'text' | 'description' | 'consent' | 'message'
 }
 
 export interface HubSpotConsentProps {
@@ -43,11 +47,12 @@ export function DefaultGroup({columns, children}: HubSpotGroupProps) {
 }
 
 /**
- * Draws HubSpot's HTML as it is, as HubSpot's own embed does. It comes from the account's form
- * editor; a site that wants it cleaned passes its own `RichText`.
+ * Draws HubSpot's HTML. It reaches here cleaned, and is cleaned once more: a form copy is a
+ * document any editor of the project can rewrite, so nothing is drawn on trust.
  */
 export function DefaultRichText({html, kind}: HubSpotRichTextProps) {
-  return <div data-hubspot-text={kind} dangerouslySetInnerHTML={{__html: html}} />
+  const cleaned = useMemo(() => cleanHtml(html), [html])
+  return <div data-hubspot-text={kind} dangerouslySetInnerHTML={{__html: cleaned}} />
 }
 
 function Box({
