@@ -7,7 +7,7 @@ HubSpot forms, tracking, page content types and live chat for Sanity. Editors pi
 - **Forms.** A `hubspot.form` field and rich-text block with a searchable picker. The Studio keeps a copy of each picked form (like Mux keeps a document per video), so a page reads its form with its own GROQ query and draws it with `<HubSpotForm>`, in your components. Follow-up fields, hidden fields, consent and a honeypot are built in. A form the site can't draw (reCAPTCHA, a file upload, a payment) falls back to HubSpot's embed.
 - **Tracking.** `<HubSpotTracker>` loads HubSpot's script only after consent, counts page changes in single-page apps, stays off in draft mode, and files each page view under a content type.
 - **Chat.** `<HubSpotChat>` controls HubSpot's chat widget per page, inline in a section, or from an "Open chat" link.
-- **A HubSpot tab** in the Studio: the connection, the forms in use that need attention, and every form with the documents it is on.
+- **A HubSpot tab** in the Studio: the connection in a line with links into HubSpot, every form searchable with its fields, its copy and the documents it is on, how each kind of page is tracked and where chat is hidden, and a setup checklist that says which step failed.
 
 ## How it fits together
 

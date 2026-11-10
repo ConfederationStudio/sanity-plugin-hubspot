@@ -12,6 +12,13 @@ Two security fixes. A form copy is a public document that anyone who can write t
 - A field's description is drawn through the form's `RichText` component, with `kind="description"`. Field components get `RichText` as a prop; a description now sits in a `[data-hubspot-text="description"]` element inside `[data-hubspot-description]`.
 - A copy's redirect after a send is followed only to an `http` or `https` address.
 
+The HubSpot tab is rebuilt. Nothing to do in your Studio.
+
+- **Forms:** how many forms are in use, need attention and are drawn by your site; a search by name or form id, and filters; each form opens to its fields, consent, what happens after a send, whether its copy is up to date, and the documents it is on, with links to edit it and see its submissions in HubSpot and a refresh of that one form.
+- **Tracking and chat:** the content type each document type is filed under, the pages that set their own, and the pages that hide chat.
+- **Setup:** a checklist of what the Studio needs to list HubSpot's forms, which names the step that failed and what to do; the key form, which now asks before removing a key; and what each refresh changed since the tab was opened.
+- The header links to the account's forms, contacts, reports and chat in HubSpot.
+
 ## 0.1.0 (2026-11-06)
 
 The first release.

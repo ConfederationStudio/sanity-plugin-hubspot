@@ -7,6 +7,7 @@ import {
   copyDocument,
   fieldValue,
   keepCopy,
+  refreshCopy,
   syncCopies,
   type CopyClient,
   type CopyState,
@@ -129,24 +130,45 @@ describe('syncCopies', () => {
     const {client, written, archived} = fakeClient({referencing: [draftPicking(3)]})
     const forms = [1, 2, 3, 4].map(testForm)
     const copies = [copyOf(1), copyOf(2, {updatedAt: '2026-01-01T00:00:00.000Z'}), copyOf(5)]
-    expect(await syncCopies(client, gone, forms, copies, false)).toEqual({
-      written: 2,
-      archived: 1,
-      failed: 0,
-    })
+    const result = await syncCopies(client, gone, forms, copies, false)
+    expect(result).toMatchObject({written: 2, archived: 1, failed: 0})
     expect(written.toSorted()).toEqual([copyOf(2)._id, copyOf(3)._id])
     expect(archived).toEqual([copyOf(5)._id])
+    // Each copy it touched is named, for the tab to list; the ones it left alone aren't.
+    expect(result.changes.toSorted((a, b) => a.formId.localeCompare(b.formId))).toEqual([
+      {formId: testForm(2).formId, name: 'Form 2', outcome: 'written'},
+      {formId: testForm(3).formId, name: 'Form 3', outcome: 'written'},
+      {formId: testForm(5).formId, outcome: 'archived'},
+    ])
   })
 
   it('counts the copies a role can’t write', async () => {
     const {client} = fakeClient({referencing: [draftPicking(3)]}, true)
     const forms = [1, 2, 3].map(testForm)
-    expect(
-      await syncCopies(client, gone, forms, [copyOf(1), copyOf(2, {version: 0})], false),
-    ).toEqual({
-      written: 0,
-      archived: 0,
-      failed: 2,
-    })
+    const result = await syncCopies(
+      client,
+      gone,
+      forms,
+      [copyOf(1), copyOf(2, {version: 0})],
+      false,
+    )
+    expect(result).toMatchObject({written: 0, archived: 0, failed: 2})
+    expect(result.changes.map((change) => change.outcome)).toEqual(['failed', 'failed'])
+  })
+})
+
+describe('refreshCopy', () => {
+  it('rewrites the copy of a form HubSpot still has', async () => {
+    const {client, written} = fakeClient({copy: copyOf(1)})
+    const route = {form: async () => ({form: testForm(1)})}
+    expect(await refreshCopy(client, route, testForm(1).formId)).toBe('written')
+    expect(written).toEqual([copyOf(1)._id])
+  })
+
+  it('marks the copy archived when HubSpot has no such form', async () => {
+    const {client, archived} = fakeClient({copy: copyOf(1)})
+    const route = {form: async () => ({form: null})}
+    expect(await refreshCopy(client, route, testForm(1).formId)).toBe('archived')
+    expect(archived).toEqual([copyOf(1)._id])
   })
 })

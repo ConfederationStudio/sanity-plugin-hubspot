@@ -8,238 +8,95 @@ import {
   Container,
   Flex,
   Heading,
-  Inline,
   Spinner,
   Stack,
+  Tab,
+  TabList,
+  TabPanel,
   Text,
-  TextInput,
 } from '@sanity/ui'
+import {Menu, MenuButton, MenuItem} from '@sanity/ui/menu'
 import {useToast} from '@sanity/ui/toast'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useClient} from 'sanity'
-import {IntentLink} from 'sanity/router'
 
-import {FORM_COPY_TYPE, SETTINGS_ID, SETTINGS_TYPE} from '../core/ids'
-import type {HubSpotAccount, HubSpotFormDefinition} from '../core/model'
+import {FORM_COPY_TYPE} from '../core/ids'
+import type {HubSpotFormDefinition} from '../core/model'
 import type {HubSpotConnection} from '../core/route'
 import {API_VERSION, type HubSpotPluginConfig} from './config'
-import {formatDate, syncCopies, type CopyState} from './copies'
-import {FormStatus} from './FormParts'
-import {failureText, RouteError, useRoute, type RouteClient} from './route'
+import {refreshCopy, syncCopies} from './copies'
+import {failureText, RouteError, useRoute, type RouteFailure} from './route'
+import {FormsPanel} from './tool/FormsPanel'
+import {accountLinks} from './tool/links'
+import {COPIES_QUERY, formRows, type CopyFacts} from './tool/rows'
+import {formatTime, isNotable, type SyncRun} from './tool/runs'
+import {isSetUp, setupSteps} from './tool/setup'
+import {SetupPanel} from './tool/SetupPanel'
+import {TrackingPanel} from './tool/TrackingPanel'
 
 /** How long the tab waits for a token before saying the session has none. */
 const SIGN_IN_WAIT = 5000
-
-interface Usage {
-  _id: string
-  _type: string
-  title?: string
-}
-
-interface CopyFacts extends CopyState {
-  name?: string
-  drawable?: boolean
-  undrawable?: HubSpotFormDefinition['undrawable']
-  progressive?: boolean
-  usedOn: Usage[]
-}
-
-/** Every copy with the documents that use it. A draft and its published document count once. */
-const COPIES = `*[_type == $type]{
-  _id, formId, name, archived, drawable, undrawable, progressive, updatedAt, version,
-  "usedOn": *[references(^._id)]{_id, _type, "title": coalesce(title, name, heading, _id)}
-}`
-
-const publishedId = (id: string) => id.replace(/^(drafts|versions\.[^.]+)\./, '')
-
-function dedupe(usage: Usage[]): Usage[] {
-  const seen = new Map<string, Usage>()
-  for (const document of usage) {
-    const id = publishedId(document._id)
-    if (!seen.has(id)) seen.set(id, {...document, _id: id})
-  }
-  return [...seen.values()]
-}
-
-const UI_DOMAIN = /^app(-[a-z0-9]+)?\.hubspot\.com$/
-
-function editorUrl(account: HubSpotAccount | undefined, formId: string): string | undefined {
-  if (!account) return undefined
-  const domain =
-    account.uiDomain && UI_DOMAIN.test(account.uiDomain) ? account.uiDomain : 'app.hubspot.com'
-  return `https://${domain}/forms/${account.portalId}/editor/${formId}/edit/form`
-}
-
-function UsedOn({usage}: {usage: Usage[]}) {
-  if (usage.length === 0)
-    return (
-      <Text size={1} muted>
-        Not used yet
-      </Text>
-    )
-  return (
-    <Stack gap={2}>
-      <Text size={1} muted>
-        Used on {usage.length === 1 ? '1 document' : `${usage.length} documents`}
-      </Text>
-      {usage.map((document) => (
-        <Text key={document._id} size={1}>
-          <IntentLink intent="edit" params={{id: document._id, type: document._type}}>
-            {document.title ?? document._id}
-          </IntentLink>
-        </Text>
-      ))}
-    </Stack>
-  )
-}
-
-function ConnectionPanel({
-  connection,
-  route,
-  api,
-  onChanged,
-}: {
-  connection: HubSpotConnection
-  route: RouteClient
-  api: string
-  onChanged: () => void
-}) {
-  const client = useClient({apiVersion: API_VERSION})
-  const toast = useToast()
-  const [key, setKey] = useState('')
-  const [saving, setSaving] = useState(false)
-  const canSaveKey = connection.status !== 'stand-in' && connection.canSaveKey
-
-  const save = async () => {
-    setSaving(true)
-    try {
-      const {sealedKey, account} = await route.saveKey(key.trim())
-      await client.createOrReplace({_id: SETTINGS_ID, _type: SETTINGS_TYPE, sealedKey, account})
-      setKey('')
-      toast.push({status: 'success', title: `Connected to HubSpot account ${account.portalId}`})
-      onChanged()
-    } catch (error) {
-      toast.push({
-        status: 'error',
-        title: 'The key wasn’t saved',
-        description: failureText(error, api),
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const remove = async () => {
-    setSaving(true)
-    try {
-      await client.patch(SETTINGS_ID).unset(['sealedKey', 'account']).commit()
-      toast.push({status: 'success', title: 'The HubSpot key is removed'})
-      onChanged()
-    } catch {
-      toast.push({status: 'error', title: 'The key wasn’t removed'})
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const theKey =
-    'source' in connection && connection.source === 'environment'
-      ? 'the key in HUBSPOT_TOKEN'
-      : 'the saved key'
-  let summary: string
-  switch (connection.status) {
-    case 'connected':
-      summary = `Connected to HubSpot account ${connection.account.portalId}, in the ${connection.account.region} data centre. ${
-        connection.source === 'environment'
-          ? 'The key comes from the site’s environment (HUBSPOT_TOKEN).'
-          : 'The key was pasted here, and only the site can read it.'
-      }`
-      break
-    case 'key-rejected':
-      summary = `HubSpot doesn’t take ${theKey} as a key. It needs a Service Key: a personal access key or developer API key won’t work, and nor will a revoked one.`
-      break
-    case 'key-lacks-scope':
-      summary = `HubSpot takes ${theKey}, but it lacks the forms scope. Add the scope to the Service Key in HubSpot, or create one that has it.`
-      break
-    case 'stand-in':
-      summary = 'Stand-in mode: the site’s route answers with sample forms and calls nobody.'
-      break
-    default:
-      summary = connection.unreadable
-        ? 'A key is saved, but the site’s secret key can’t open it: HUBSPOT_SECRET_KEY has changed. Paste the key again.'
-        : canSaveKey
-          ? 'Not connected. Paste a HubSpot Service Key with the forms scope.'
-          : 'Not connected. Set HUBSPOT_TOKEN in the site’s environment, or set HUBSPOT_SECRET_KEY and have an administrator paste a key here.'
-  }
-
-  return (
-    <Card
-      padding={4}
-      radius={2}
-      border
-      tone={connection.status === 'connected' ? 'positive' : 'caution'}
-    >
-      <Stack gap={4}>
-        <Heading size={1} as="h2">
-          Connection
-        </Heading>
-        <Text size={1}>{summary}</Text>
-        {canSaveKey && (
-          <Flex gap={2}>
-            <Box flex={1}>
-              <TextInput
-                type="password"
-                autoComplete="off"
-                placeholder="pat-na1-…"
-                value={key}
-                onChange={(event) => setKey(event.currentTarget.value)}
-              />
-            </Box>
-            <Button
-              text={connection.status === 'connected' ? 'Replace key' : 'Save key'}
-              tone="primary"
-              disabled={key.trim() === '' || saving}
-              loading={saving}
-              onClick={save}
-            />
-          </Flex>
-        )}
-        {canSaveKey &&
-          connection.status !== 'not-connected' &&
-          'source' in connection &&
-          connection.source === 'studio' && (
-            <Box>
-              <Button
-                text="Remove key"
-                mode="ghost"
-                tone="critical"
-                disabled={saving}
-                onClick={remove}
-              />
-            </Box>
-          )}
-      </Stack>
-    </Card>
-  )
-}
+/** How many refreshes the Setup panel lists. */
+const RUNS_KEPT = 10
 
 interface ToolState {
   connection?: HubSpotConnection
   forms?: HubSpotFormDefinition[]
   copies?: CopyFacts[]
-  failure?: string
+  failure?: RouteFailure
+}
+
+type Panel = 'forms' | 'tracking' | 'setup'
+
+const PANELS: readonly {id: Panel; label: string}[] = [
+  {id: 'forms', label: 'Forms'},
+  {id: 'tracking', label: 'Tracking and chat'},
+  {id: 'setup', label: 'Setup'},
+]
+
+/** The account and key in a line, once HubSpot is connected. */
+function statusLine(connection: HubSpotConnection | undefined, refreshed: string | undefined) {
+  if (connection?.status === 'stand-in') return 'Sample forms only'
+  if (connection?.status !== 'connected') return undefined
+  return [
+    `Account ${connection.account.portalId}`,
+    connection.account.region,
+    connection.source === 'environment' ? 'key from the site’s environment' : 'key pasted here',
+    refreshed && `refreshed ${refreshed}`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+function StatusBadge({
+  connection,
+  failure,
+}: {
+  connection: HubSpotConnection | undefined
+  failure: RouteFailure | undefined
+}) {
+  if (failure) return <Badge tone="critical">Not working</Badge>
+  if (connection?.status === 'connected') return <Badge tone="positive">Connected</Badge>
+  if (connection?.status === 'stand-in') return <Badge>Stand-in</Badge>
+  return connection ? <Badge tone="caution">Setup needed</Badge> : null
 }
 
 /**
- * The HubSpot tab: the connection, the forms in use that need attention, and every form with
- * the documents it is on. Opening it brings the copies up to date; Refresh copies them all.
+ * The HubSpot tab: the connection in a line, every form with the documents it is on, how pages
+ * are tracked, and the setup. Opening it brings the copies up to date; Refresh all copies every
+ * one again.
  */
 export function HubSpotTool({config}: {config: HubSpotPluginConfig}) {
   const client = useClient({apiVersion: API_VERSION})
   const route = useRoute(config.api)
   const toast = useToast()
   const [state, setState] = useState<ToolState>({})
+  // The latest refresh, and the ones worth listing: asked for, or that changed a copy.
+  const [lastRun, setLastRun] = useState<SyncRun>()
+  const [runs, setRuns] = useState<SyncRun[]>([])
+  const runCount = useRef(0)
   const [syncing, setSyncing] = useState(true)
+  const [chosen, setChosen] = useState<Panel>()
   // A load for a route that has since changed, such as one with no token yet, is answered by the next.
   const current = useRef(route)
   useEffect(() => {
@@ -256,32 +113,31 @@ export function HubSpotTool({config}: {config: HubSpotPluginConfig}) {
         }
         const [{forms}, copies] = await Promise.all([
           route.forms(),
-          client.fetch<CopyFacts[]>(COPIES, {type: FORM_COPY_TYPE}),
+          client.fetch<CopyFacts[]>(COPIES_QUERY, {type: FORM_COPY_TYPE}),
         ])
         const result = await syncCopies(client, route, forms, copies, all)
         const fresh =
           result.written + result.archived > 0
-            ? await client.fetch<CopyFacts[]>(COPIES, {type: FORM_COPY_TYPE})
+            ? await client.fetch<CopyFacts[]>(COPIES_QUERY, {type: FORM_COPY_TYPE})
             : copies
         setState({connection, forms, copies: fresh})
-        if (result.failed > 0)
-          toast.push({
-            status: 'warning',
-            title: `${result.failed} form ${result.failed === 1 ? 'copy' : 'copies'} couldn’t be updated`,
-            description: 'Your role may not allow writing documents.',
-          })
-        else if (all) toast.push({status: 'success', title: 'Every form copy is up to date'})
+        const run: SyncRun = {id: runCount.current++, at: new Date().toISOString(), all, result}
+        setLastRun(run)
+        if (isNotable(run)) setRuns((last) => [run, ...last].slice(0, RUNS_KEPT))
+        if (all && result.failed === 0)
+          toast.push({status: 'success', title: 'Every form copy is up to date'})
       } catch (error) {
         // Signing in, the Studio can open before Sanity gives it a token, which then reloads the tab.
         if (error instanceof RouteError && error.code === 'no-token')
           await new Promise((resolve) => setTimeout(resolve, SIGN_IN_WAIT))
         if (route !== current.current) return
-        setState((last) => ({...last, failure: failureText(error, config.api)}))
+        const failure = error instanceof RouteError ? error.code : 'hubspot-failed'
+        setState((last) => ({...last, failure}))
       } finally {
         if (route === current.current) setSyncing(false)
       }
     },
-    [client, config.api, route, toast],
+    [client, route, toast],
   )
 
   // Opening the tab brings the copies up to date. Every state change in `load` follows an await.
@@ -292,155 +148,198 @@ export function HubSpotTool({config}: {config: HubSpotPluginConfig}) {
     void run()
   }, [load])
 
-  const rows = useMemo(() => {
-    const copies = new Map((state.copies ?? []).map((copy) => [copy.formId, copy]))
-    const listed = (state.forms ?? []).map((form) => {
-      const copy = copies.get(form.formId)
-      return {
-        formId: form.formId,
-        name: form.name,
-        facts: {...form, archived: false},
-        updatedAt: form.updatedAt,
-        usedOn: dedupe(copy?.usedOn ?? []),
-      }
-    })
-    const listedIds = new Set(listed.map((row) => row.formId))
-    const gone = (state.copies ?? [])
-      .filter((copy) => !listedIds.has(copy.formId))
-      .map((copy) => ({
-        formId: copy.formId,
-        name: copy.name ?? copy.formId,
-        facts: {
-          formId: copy.formId,
-          archived: copy.archived ?? true,
-          drawable: copy.drawable ?? false,
-          undrawable: copy.undrawable ?? [],
-          progressive: copy.progressive ?? false,
-        },
-        updatedAt: copy.updatedAt,
-        usedOn: dedupe(copy.usedOn),
-      }))
-    return [...listed, ...gone].toSorted(
-      (a, b) => b.usedOn.length - a.usedOn.length || a.name.localeCompare(b.name),
-    )
-  }, [state.copies, state.forms])
-
-  const attention = rows.filter(
-    (row) => row.usedOn.length > 0 && (row.facts.archived || !row.facts.drawable),
+  const refresh = useCallback(
+    (all: boolean) => {
+      setSyncing(true)
+      void load(all)
+    },
+    [load],
   )
-  const account = state.connection?.status === 'connected' ? state.connection.account : undefined
+
+  const refreshForm = useCallback(
+    async (formId: string) => {
+      try {
+        const outcome = await refreshCopy(client, route, formId)
+        toast.push(
+          outcome === 'written'
+            ? {status: 'success', title: 'Form refreshed from HubSpot'}
+            : {status: 'warning', title: 'HubSpot no longer has this form'},
+        )
+        await load()
+      } catch (error) {
+        toast.push({
+          status: 'error',
+          title: 'Couldn’t refresh the form',
+          description:
+            error instanceof RouteError
+              ? failureText(error, config.api)
+              : 'Your role may not allow writing documents.',
+        })
+      }
+    },
+    [client, config.api, load, route, toast],
+  )
+
+  const {connection, failure} = state
+  const rows = useMemo(
+    () => formRows(state.forms ?? [], state.copies ?? []),
+    [state.copies, state.forms],
+  )
+  const steps = useMemo(
+    () => setupSteps({connection, failure, api: config.api}),
+    [config.api, connection, failure],
+  )
+  const account = connection?.status === 'connected' ? connection.account : undefined
+  const links = accountLinks(account)
+  const ready = state.forms !== undefined && !failure
+  // Until an editor picks a panel, the tab opens on what there is to do: the forms, or the setup.
+  const panel = chosen ?? (ready ? 'forms' : 'setup')
+  const status = statusLine(connection, formatTime(lastRun?.at))
+  const waiting = !connection && !failure
 
   return (
     <Container width={2} padding={4} sizing="border">
       <Stack gap={5}>
-        <Flex align="center" gap={3}>
-          <Box flex={1}>
-            <Heading as="h1" size={2}>
-              HubSpot
-            </Heading>
+        <Flex align="center" gap={3} wrap="wrap">
+          {/* Wide enough that the buttons wrap under the title on a narrow screen. */}
+          <Box flex={1} style={{minWidth: 260}}>
+            <Stack gap={3}>
+              <Flex align="center" gap={3}>
+                <Heading as="h1" size={2}>
+                  HubSpot
+                </Heading>
+                <StatusBadge connection={connection} failure={failure} />
+              </Flex>
+              {status && (
+                <Text size={1} muted>
+                  {status}
+                </Text>
+              )}
+            </Stack>
           </Box>
+          {links && (
+            <MenuButton
+              id="hubspot-open"
+              button={<Button text="Open HubSpot" iconRight={LaunchIcon} mode="ghost" />}
+              popover={{placement: 'bottom-end', portal: true}}
+              menu={
+                <Menu>
+                  <MenuItem
+                    as="a"
+                    href={links.forms}
+                    target="_blank"
+                    rel="noreferrer"
+                    text="Forms"
+                  />
+                  <MenuItem
+                    as="a"
+                    href={links.contacts}
+                    target="_blank"
+                    rel="noreferrer"
+                    text="Contacts"
+                  />
+                  <MenuItem
+                    as="a"
+                    href={links.reports}
+                    target="_blank"
+                    rel="noreferrer"
+                    text="Reports"
+                  />
+                  <MenuItem as="a" href={links.chat} target="_blank" rel="noreferrer" text="Chat" />
+                </Menu>
+              }
+            />
+          )}
           <Button
             text="Refresh all"
             icon={SyncIcon}
             mode="ghost"
+            title="Read every form from HubSpot again and rewrite the copies"
             loading={syncing}
             disabled={syncing || !state.forms}
-            onClick={() => {
-              setSyncing(true)
-              void load(true)
-            }}
+            onClick={() => refresh(true)}
           />
         </Flex>
 
-        {state.failure && (
-          <Card tone="critical" padding={4} radius={2} border>
-            <Text size={1}>{state.failure}</Text>
-          </Card>
-        )}
-        {!state.connection && !state.failure && (
+        {waiting ? (
           <Flex justify="center" padding={5}>
             <Spinner muted />
           </Flex>
-        )}
-        {state.connection && (
-          <ConnectionPanel
-            connection={state.connection}
-            route={route}
-            api={config.api}
-            onChanged={() => {
-              setSyncing(true)
-              void load()
-            }}
-          />
-        )}
-
-        {attention.length > 0 && (
-          <Stack gap={3}>
-            <Heading as="h2" size={1}>
-              Needs attention
-            </Heading>
-            {attention.map((row) => (
-              <Card key={row.formId} padding={4} radius={2} border tone="caution">
-                <Stack gap={3}>
-                  <Text weight="semibold">{row.name}</Text>
-                  <FormStatus form={row.facts} />
-                  <UsedOn usage={row.usedOn} />
-                </Stack>
-              </Card>
-            ))}
-          </Stack>
-        )}
-
-        {state.forms && (
-          <Stack gap={3}>
-            <Heading as="h2" size={1}>
-              Forms
-            </Heading>
-            {rows.length === 0 && (
-              <Text size={1} muted>
-                The account has no forms yet.
-              </Text>
-            )}
-            {rows.map((row) => {
-              const link = editorUrl(account, row.formId)
-              const changed = formatDate(row.updatedAt)
-              return (
-                <Card key={row.formId} padding={4} radius={2} border>
-                  <Stack gap={3}>
-                    <Flex align="center" gap={3}>
-                      <Box flex={1}>
-                        <Stack gap={2}>
-                          <Text weight="semibold">{row.name}</Text>
-                          {changed && (
-                            <Text size={1} muted>
-                              Last changed in HubSpot {changed}
-                            </Text>
-                          )}
-                        </Stack>
-                      </Box>
-                      {row.usedOn.length > 0 && <Badge>In use</Badge>}
-                      {link && !row.facts.archived && (
-                        <Button
-                          as="a"
-                          href={link}
-                          target="_blank"
-                          rel="noreferrer"
-                          text="Edit in HubSpot"
-                          icon={LaunchIcon}
-                          mode="bleed"
-                          fontSize={1}
-                        />
-                      )}
-                    </Flex>
-                    <Inline gap={2}>
-                      <FormStatus form={row.facts} />
-                    </Inline>
-                    <UsedOn usage={row.usedOn} />
-                  </Stack>
+        ) : (
+          <Stack gap={4}>
+            <TabList gap={1}>
+              {PANELS.map(({id, label}) => (
+                <Tab
+                  key={id}
+                  id={`hubspot-tab-${id}`}
+                  aria-controls={`hubspot-panel-${id}`}
+                  label={label}
+                  selected={panel === id}
+                  onClick={() => setChosen(id)}
+                />
+              ))}
+            </TabList>
+            <TabPanel
+              id="hubspot-panel-forms"
+              aria-labelledby="hubspot-tab-forms"
+              hidden={panel !== 'forms'}
+            >
+              {ready ? (
+                <FormsPanel
+                  rows={rows}
+                  account={account}
+                  lastRun={lastRun}
+                  busy={syncing}
+                  onRefreshForm={refreshForm}
+                  onRetry={() => refresh(false)}
+                />
+              ) : (
+                <Card padding={4} radius={2} border tone="transparent">
+                  <Text size={1} muted>
+                    HubSpot’s forms show here once the setup is done.
+                  </Text>
                 </Card>
-              )
-            })}
+              )}
+            </TabPanel>
+            <TabPanel
+              id="hubspot-panel-tracking"
+              aria-labelledby="hubspot-tab-tracking"
+              hidden={panel !== 'tracking'}
+            >
+              {panel === 'tracking' && <TrackingPanel config={config} />}
+            </TabPanel>
+            <TabPanel
+              id="hubspot-panel-setup"
+              aria-labelledby="hubspot-tab-setup"
+              hidden={panel !== 'setup'}
+            >
+              <SetupPanel
+                steps={steps}
+                connection={connection}
+                route={route}
+                api={config.api}
+                runs={runs}
+                busy={syncing}
+                onCheck={() => refresh(false)}
+                onChanged={() => refresh(false)}
+              />
+            </TabPanel>
           </Stack>
+        )}
+        {!waiting && !isSetUp(steps) && panel !== 'setup' && (
+          <Card padding={3} radius={2} border tone={failure ? 'critical' : 'caution'}>
+            <Flex align="center" gap={3}>
+              <Box flex={1}>
+                <Text size={1}>The setup isn’t finished, so some of this may be missing.</Text>
+              </Box>
+              <Button
+                text="Open setup"
+                mode="ghost"
+                fontSize={1}
+                onClick={() => setChosen('setup')}
+              />
+            </Flex>
+          </Card>
         )}
       </Stack>
     </Container>

@@ -122,7 +122,20 @@ export async function markArchived(client: CopyClient, formId: string): Promise<
     .commit()
 }
 
-export type SyncResult = {written: number; archived: number; failed: number}
+/** What a sync did to one form's copy. Copies it left alone aren't listed. */
+export interface SyncChange {
+  formId: string
+  name?: string
+  outcome: 'written' | 'archived' | 'failed'
+}
+
+export interface SyncResult {
+  written: number
+  archived: number
+  failed: number
+  /** Each copy the sync wrote, archived or couldn't write, for the tab to list. */
+  changes: SyncChange[]
+}
 
 const COPY_REF = /"_ref":"(hubspot-form-[0-9a-f-]{36})"/g
 
@@ -160,36 +173,71 @@ export async function syncCopies(
   all: boolean,
 ): Promise<SyncResult> {
   const listed = new Map(forms.map((form) => [form.formId, form]))
-  const firsts = (await uncopied(client, forms, copies)).map(async (form): Promise<'written'> => {
-    await writeCopy(client, form)
-    return 'written'
+  type Task = {
+    formId: string
+    name?: string
+    run: () => Promise<'written' | 'archived' | 'kept'>
+  }
+  const firsts = (await uncopied(client, forms, copies)).map((form): Task => ({
+    formId: form.formId,
+    name: form.name,
+    run: async () => {
+      await writeCopy(client, form)
+      return 'written'
+    },
+  }))
+  const rest = copies.map((copy): Task => {
+    const fresh = listed.get(copy.formId)
+    return {
+      formId: copy.formId,
+      ...(fresh && {name: fresh.name}),
+      run: async () => {
+        if (fresh) {
+          if (!all && isCurrent(copy, fresh)) return 'kept'
+          await writeCopy(client, fresh)
+          return 'written'
+        }
+        if (copy.archived && !all) return 'kept'
+        const {form} = await route.form(copy.formId)
+        if (form) {
+          await writeCopy(client, form)
+          return 'written'
+        }
+        if (copy.archived) return 'kept'
+        await markArchived(client, copy.formId)
+        return 'archived'
+      },
+    }
   })
-  const outcomes = await Promise.allSettled([
-    ...firsts,
-    ...copies.map(async (copy): Promise<'written' | 'archived' | 'kept'> => {
-      const fresh = listed.get(copy.formId)
-      if (fresh) {
-        if (!all && isCurrent(copy, fresh)) return 'kept'
-        await writeCopy(client, fresh)
-        return 'written'
-      }
-      if (copy.archived && !all) return 'kept'
-      const {form} = await route.form(copy.formId)
-      if (form) {
-        await writeCopy(client, form)
-        return 'written'
-      }
-      if (copy.archived) return 'kept'
-      await markArchived(client, copy.formId)
-      return 'archived'
-    }),
-  ])
-  const result: SyncResult = {written: 0, archived: 0, failed: 0}
-  for (const outcome of outcomes) {
-    if (outcome.status === 'rejected') result.failed++
-    else if (outcome.value !== 'kept') result[outcome.value]++
+  const tasks = [...firsts, ...rest]
+  const outcomes = await Promise.allSettled(tasks.map((task) => task.run()))
+  const result: SyncResult = {written: 0, archived: 0, failed: 0, changes: []}
+  for (const [index, settled] of outcomes.entries()) {
+    const outcome = settled.status === 'rejected' ? 'failed' : settled.value
+    const task = tasks[index]
+    if (outcome === 'kept' || !task) continue
+    result[outcome]++
+    result.changes.push({formId: task.formId, ...(task.name && {name: task.name}), outcome})
   }
   return result
+}
+
+/**
+ * Reads one form from HubSpot again and rewrites its copy, as the editor. When HubSpot has no
+ * such form any more, the copy is marked archived instead.
+ */
+export async function refreshCopy(
+  client: CopyClient,
+  route: Pick<RouteClient, 'form'>,
+  formId: string,
+): Promise<'written' | 'archived'> {
+  const {form} = await route.form(formId)
+  if (form) {
+    await writeCopy(client, form)
+    return 'written'
+  }
+  await markArchived(client, formId)
+  return 'archived'
 }
 
 export function fieldValue(form: Pick<HubSpotFormDefinition, 'formId' | 'name'>): HubSpotFormValue {
